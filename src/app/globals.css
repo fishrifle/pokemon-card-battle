@@ -173,6 +173,11 @@ body {
   animation: attack 0.5s ease-in-out;
 }
 
+.animate-attack-3d {
+  animation: attack-3d 0.8s ease-in-out;
+  transform-style: preserve-3d;
+}
+
 .animate-take-damage {
   animation: takeDamage 0.5s ease-in-out;
 }
@@ -181,6 +186,20 @@ body {
   animation: defeated 1s ease-in-out forwards;
 }
 
+.animate-defeated-3d {
+  animation: defeated-3d 1.5s ease-out forwards;
+  transform-style: preserve-3d;
+}
+
 .animate-victory {
   animation: victory 1s ease-in-out infinite;
+}
+
+.animate-victory-3d {
+  animation: victory-3d 2s ease-in-out infinite;
+  transform-style: preserve-3d;
+}
+
+.animate-screen-shake {
+  animation: screen-shake 0.5s ease-in-out;
 }

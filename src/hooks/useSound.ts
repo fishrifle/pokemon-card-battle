@@ -95,6 +95,84 @@ export const useSound = () => {
     setTimeout(() => playSound(1000, 0.3, 'square', 0.04), 200);
   }, [playSound]);
 
+  const playBackgroundMusic = useCallback(() => {
+    const ctx = initAudioContext();
+    
+    // Create a simple ambient loop
+    const playAmbientTone = (frequency: number, duration: number, delay: number) => {
+      setTimeout(() => {
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0, ctx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.5);
+        gainNode.gain.linearRampToValueAtTime(0.02, ctx.currentTime + duration - 0.5);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + duration);
+      }, delay);
+    };
+
+    // Play ambient tones in sequence
+    const ambientSequence = [
+      { freq: 220, duration: 4, delay: 0 },
+      { freq: 330, duration: 3, delay: 2000 },
+      { freq: 275, duration: 3.5, delay: 4000 },
+      { freq: 440, duration: 2.5, delay: 6000 }
+    ];
+
+    ambientSequence.forEach(tone => {
+      playAmbientTone(tone.freq, tone.duration, tone.delay);
+    });
+
+    // Loop the sequence
+    setTimeout(() => playBackgroundMusic(), 8000);
+  }, [initAudioContext]);
+
+  const playArenaAmbience = useCallback(() => {
+    const ctx = initAudioContext();
+    
+    // Create crowd-like ambient noise
+    const createNoise = () => {
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      const filterNode = ctx.createBiquadFilter();
+      
+      oscillator.connect(filterNode);
+      filterNode.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.value = 100 + Math.random() * 200;
+      oscillator.type = 'sawtooth';
+      
+      filterNode.frequency.value = 500 + Math.random() * 1000;
+      filterNode.Q.value = 0.5;
+      
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.005, ctx.currentTime + 0.1);
+      gainNode.gain.linearRampToValueAtTime(0.005, ctx.currentTime + 0.8);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 1);
+    };
+
+    // Create multiple noise sources
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => createNoise(), i * 200);
+    }
+
+    // Continue ambient sounds
+    setTimeout(() => playArenaAmbience(), 2000 + Math.random() * 1000);
+  }, [initAudioContext]);
+
   return {
     playCardSelect,
     playCardFlip,
@@ -102,6 +180,8 @@ export const useSound = () => {
     playCriticalHit,
     playVictory,
     playDefeat,
-    playBattleStart
+    playBattleStart,
+    playBackgroundMusic,
+    playArenaAmbience
   };
 };

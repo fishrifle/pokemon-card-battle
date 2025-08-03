@@ -5,6 +5,7 @@ import { PokemonCard as PokemonCardType } from '@/types/pokemon';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useSound } from '@/hooks/useSound';
+import ParticleEffect from '@/components/ParticleEffect';
 
 interface BattleLog {
   attacker: string;
@@ -29,8 +30,11 @@ export default function BattlePage() {
   const [winner, setWinner] = useState<'player1' | 'player2' | null>(null);
   const [battleLog, setBattleLog] = useState<BattleLog[]>([]);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showParticles, setShowParticles] = useState(false);
+  const [particleType, setParticleType] = useState<'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'>('impact');
+  const [screenShake, setScreenShake] = useState(false);
   const router = useRouter();
-  const { playAttack, playCriticalHit, playVictory, playDefeat } = useSound();
+  const { playAttack, playCriticalHit, playVictory, playDefeat, playArenaAmbience } = useSound();
  
  
  
@@ -45,7 +49,7 @@ export default function BattlePage() {
       
       setTimeout(() => {
         setBattlePhase('fighting');
-        
+        playArenaAmbience();
       }, 1500);
     } else {
       router.push('/');
@@ -163,12 +167,30 @@ export default function BattlePage() {
 
     setBattleLog(prev => [...prev, logEntry]);
 
-    // Play sound effects
+    // Play sound effects and show particles
     const primaryType = attacker.types[0];
     playAttack(primaryType);
     
+    // Set particle type based on Pokemon type
+    const typeToParticle = (type: string) => {
+      const typeMap: Record<string, 'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'> = {
+        Fire: 'fire',
+        Water: 'water',
+        Electric: 'electric',
+        Grass: 'grass',
+        Psychic: 'psychic'
+      };
+      return typeMap[type] || 'impact';
+    };
+    
+    setParticleType(typeToParticle(primaryType));
+    setShowParticles(true);
+    
+    // Screen shake on critical hits
     if (attackResult.critical) {
       setTimeout(() => playCriticalHit(), 200);
+      setScreenShake(true);
+      setTimeout(() => setScreenShake(false), 500);
     }
 
     if (currentTurn === 'player1') {
@@ -245,7 +267,7 @@ export default function BattlePage() {
   }
 
   return (
-    <div className="min-h-screen relative p-4" style={{
+    <div className={`min-h-screen relative p-4 ${screenShake ? 'animate-screen-shake' : ''}`} style={{
       background: `
         radial-gradient(circle at 30% 20%, rgba(255, 215, 0, 0.3) 0%, transparent 50%),
         radial-gradient(circle at 70% 80%, rgba(255, 69, 0, 0.2) 0%, transparent 50%),
@@ -258,9 +280,26 @@ export default function BattlePage() {
         <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-96 h-20 bg-yellow-600 opacity-30 rounded-full blur-xl"></div>
       </div>
 
-      {/* Arena Lights */}
-      <div className="absolute top-10 left-10 w-20 h-20 bg-yellow-300 rounded-full opacity-20 blur-2xl"></div>
-      <div className="absolute top-10 right-10 w-20 h-20 bg-yellow-300 rounded-full opacity-20 blur-2xl"></div>
+      {/* Arena Lights - Enhanced with dynamic effects */}
+      <div className="absolute top-10 left-10 w-20 h-20 bg-yellow-300 rounded-full opacity-20 blur-2xl animate-pulse"></div>
+      <div className="absolute top-10 right-10 w-20 h-20 bg-yellow-300 rounded-full opacity-20 blur-2xl animate-pulse"></div>
+      
+      {/* Dynamic spotlights */}
+      <div className="absolute top-0 left-1/4 w-32 h-32 bg-gradient-radial from-white/10 to-transparent rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute top-0 right-1/4 w-32 h-32 bg-gradient-radial from-white/10 to-transparent rounded-full blur-3xl animate-pulse"></div>
+      
+      {/* Battle intensity lights */}
+      {isAnimating && (
+        <>
+          <div className="absolute inset-0 bg-red-500 opacity-5 animate-pulse"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-yellow-400 rounded-full opacity-10 blur-3xl animate-ping"></div>
+        </>
+      )}
+      
+      {/* Victory lighting */}
+      {winner && (
+        <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/20 to-orange-500/20 animate-pulse"></div>
+      )}
 
       <div className="max-w-6xl mx-auto relative z-10">
         <h1 className="text-4xl font-bold text-center mb-8 text-white drop-shadow-lg">
@@ -357,6 +396,15 @@ export default function BattlePage() {
             </div>
           </div>
         </div>
+
+        {/* Particle Effects */}
+        <ParticleEffect 
+          type={particleType}
+          isActive={showParticles}
+          onComplete={() => setShowParticles(false)}
+          x={200}
+          y={150}
+        />
 
         <div className="bg-white rounded-lg p-4 shadow-lg max-h-64 overflow-y-auto relative z-10">
           <h3 className="font-bold text-lg mb-2">Battle Log</h3>

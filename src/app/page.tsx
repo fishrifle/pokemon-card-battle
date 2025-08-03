@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { pokemonCards } from '@/data/pokemonData';
 import { PokemonCard as PokemonCardType } from '@/types/pokemon';
 import PokemonCard from '@/components/PokemonCard';
 import { useRouter } from 'next/navigation';
+import { useSound } from '@/hooks/useSound';
 
 export default function Home() {
   const [selectedCards, setSelectedCards] = useState<PokemonCardType[]>([]);
@@ -12,6 +13,18 @@ export default function Home() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [rarityFilter, setRarityFilter] = useState('all');
   const router = useRouter();
+  const { playBackgroundMusic } = useSound();
+
+  useEffect(() => {
+    // Start background music after user interaction
+    const startMusic = () => {
+      playBackgroundMusic();
+      document.removeEventListener('click', startMusic);
+    };
+    document.addEventListener('click', startMusic);
+
+    return () => document.removeEventListener('click', startMusic);
+  }, [playBackgroundMusic]);
 
   const filteredCards = useMemo(() => {
     return pokemonCards.filter(card => {
