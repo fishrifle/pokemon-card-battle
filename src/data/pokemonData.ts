@@ -75,4 +75,6 @@ function getRarityByStats(hp: number, attack: number, defense: number): 'common'
   return 'common';
 }
 
+// Export function instead of static data to allow dynamic updates
+export const getPokemonCards = () => generatePokemonCards();
 export const pokemonCards = generatePokemonCards();

@@ -56,6 +56,13 @@ export default function BattlePage() {
     }
   }, [router]);
 
+  // Update stats when winner is determined
+  useEffect(() => {
+    if (winner && battlePhase === 'finished') {
+      updatePokemonStats();
+    }
+  }, [winner, battlePhase, battleCards]);
+
   const rollDice = () => Math.floor(Math.random() * 6) + 1;
 
   const getTypeEffectiveness = (attackerTypes: string[], defenderTypes: string[]) => {
@@ -210,7 +217,6 @@ export default function BattlePage() {
       if (newHP <= 0) {
         setWinner(currentTurn);
         setBattlePhase('finished');
-        updatePokemonStats();
         
         // Play victory/defeat sounds
         setTimeout(() => {
@@ -225,10 +231,17 @@ export default function BattlePage() {
   };
 
   const updatePokemonStats = () => {
-    if (!winner || !battleCards.length) return;
+    console.log('updatePokemonStats called', { winner, battleCardsLength: battleCards.length });
+    if (!winner || !battleCards.length) {
+      console.log('Early return from updatePokemonStats');
+      return;
+    }
     
     const winnerCard = winner === 'player1' ? battleCards[0] : battleCards[1];
     const loserCard = winner === 'player1' ? battleCards[1] : battleCards[0];
+    
+    console.log(`Winner: ${winnerCard.name} (ID: ${winnerCard.id})`);
+    console.log(`Loser: ${loserCard.name} (ID: ${loserCard.id})`);
     
     // Get existing stats from localStorage
     const existingStats = localStorage.getItem('pokemonStats');
@@ -262,7 +275,8 @@ export default function BattlePage() {
 
   const returnToSelection = () => {
     localStorage.removeItem('battleCards');
-    router.push('/');
+    // Force refresh of pokemon data by clearing and reloading
+    window.location.href = '/';
   };
 
   if (!player1Card || !player2Card) {

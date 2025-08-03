@@ -29,55 +29,55 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
   const getCardBackground = (types: string[]) => {
     const primaryType = types[0];
     const bgColors: Record<string, string> = {
-      Fire: 'bg-gradient-to-br from-red-400 to-red-600',
-      Water: 'bg-gradient-to-br from-blue-400 to-blue-600',
-      Grass: 'bg-gradient-to-br from-green-400 to-green-600',
-      Electric: 'bg-gradient-to-br from-yellow-400 to-yellow-600',
-      Psychic: 'bg-gradient-to-br from-purple-400 to-purple-600',
-      Ice: 'bg-gradient-to-br from-cyan-400 to-cyan-600',
-      Fighting: 'bg-gradient-to-br from-orange-400 to-orange-600',
-      Poison: 'bg-gradient-to-br from-violet-400 to-violet-600',
-      Ground: 'bg-gradient-to-br from-amber-500 to-amber-700',
-      Flying: 'bg-gradient-to-br from-sky-400 to-sky-600',
-      Bug: 'bg-gradient-to-br from-lime-400 to-lime-600',
-      Rock: 'bg-gradient-to-br from-stone-400 to-stone-600',
-      Ghost: 'bg-gradient-to-br from-indigo-400 to-indigo-600',
-      Dragon: 'bg-gradient-to-br from-red-500 to-red-700',
-      Dark: 'bg-gradient-to-br from-gray-600 to-gray-800',
-      Steel: 'bg-gradient-to-br from-slate-400 to-slate-600',
-      Fairy: 'bg-gradient-to-br from-pink-400 to-pink-600',
-      Normal: 'bg-gradient-to-br from-gray-400 to-gray-600'
+      Fire: 'bg-gradient-to-br from-red-700 to-red-900',
+      Water: 'bg-gradient-to-br from-blue-700 to-blue-900',
+      Grass: 'bg-gradient-to-br from-green-700 to-green-900',
+      Electric: 'bg-gradient-to-br from-yellow-600 to-yellow-800',
+      Psychic: 'bg-gradient-to-br from-purple-700 to-purple-900',
+      Ice: 'bg-gradient-to-br from-cyan-700 to-cyan-900',
+      Fighting: 'bg-gradient-to-br from-orange-700 to-orange-900',
+      Poison: 'bg-gradient-to-br from-violet-700 to-violet-900',
+      Ground: 'bg-gradient-to-br from-amber-700 to-amber-900',
+      Flying: 'bg-gradient-to-br from-sky-700 to-sky-900',
+      Bug: 'bg-gradient-to-br from-lime-700 to-lime-900',
+      Rock: 'bg-gradient-to-br from-stone-700 to-stone-900',
+      Ghost: 'bg-gradient-to-br from-indigo-700 to-indigo-900',
+      Dragon: 'bg-gradient-to-br from-red-800 to-red-950',
+      Dark: 'bg-gradient-to-br from-gray-800 to-gray-950',
+      Steel: 'bg-gradient-to-br from-slate-700 to-slate-900',
+      Fairy: 'bg-gradient-to-br from-pink-700 to-pink-900',
+      Normal: 'bg-gradient-to-br from-gray-700 to-gray-900'
     };
-    return bgColors[primaryType] || 'bg-gradient-to-br from-gray-400 to-gray-600';
+    return bgColors[primaryType] || 'bg-gradient-to-br from-gray-700 to-gray-900';
   };
 
   const getTypeBgColor = (type: string) => {
     const bgColors: Record<string, string> = {
-      Fire: 'bg-red-600',
-      Water: 'bg-blue-600',
-      Grass: 'bg-green-600',
-      Electric: 'bg-yellow-600',
-      Psychic: 'bg-purple-600',
-      Ice: 'bg-cyan-600',
-      Fighting: 'bg-orange-600',
-      Poison: 'bg-violet-600',
-      Ground: 'bg-amber-500',
-      Flying: 'bg-sky-400',
-      Bug: 'bg-lime-400',
-      Rock: 'bg-stone-400',
-      Ghost: 'bg-indigo-400',
-      Dragon: 'bg-red-500',
-      Dark: 'bg-gray-600',
-      Steel: 'bg-slate-400',
-      Fairy: 'bg-pink-400',
-      Normal: 'bg-gray-400'
+      Fire: 'bg-red-800',
+      Water: 'bg-blue-800',
+      Grass: 'bg-green-800',
+      Electric: 'bg-yellow-700',
+      Psychic: 'bg-purple-800',
+      Ice: 'bg-cyan-800',
+      Fighting: 'bg-orange-800',
+      Poison: 'bg-violet-800',
+      Ground: 'bg-amber-800',
+      Flying: 'bg-sky-800',
+      Bug: 'bg-lime-800',
+      Rock: 'bg-stone-800',
+      Ghost: 'bg-indigo-800',
+      Dragon: 'bg-red-900',
+      Dark: 'bg-gray-900',
+      Steel: 'bg-slate-800',
+      Fairy: 'bg-pink-800',
+      Normal: 'bg-gray-800'
     };
-    return bgColors[type] || 'bg-gray-400';
+    return bgColors[type] || 'bg-gray-800';
   };
 
   return (
     <div 
-      className={`relative w-48 h-80 cursor-pointer transition-all duration-300 transform hover:scale-105 ${
+      className={`relative w-40 h-64 cursor-pointer transition-all duration-300 transform hover:scale-105 ${
         isSelected ? 'ring-4 ring-blue-500 ring-opacity-75' : ''
       }`}
       onClick={() => {
@@ -89,21 +89,21 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
         setFlipped(!flipped);
       }}
     >
-      <div className={`w-full h-full rounded-lg border-2 ${getRarityColor(pokemon.rarity)} ${getCardBackground(pokemon.types)} shadow-lg p-4 transition-transform duration-500 ${flipped ? 'rotateY-180' : ''}`}>
+      <div className={`w-full h-full rounded-lg border-2 ${getRarityColor(pokemon.rarity)} ${getCardBackground(pokemon.types)} shadow-lg p-3 transition-transform duration-500 ${flipped ? 'rotateY-180' : ''}`}>
         {!flipped ? (
           <div className="flex flex-col h-full">
-            <div className="text-center mb-2">
-              <h3 className="font-bold text-lg truncate text-white drop-shadow-lg">{pokemon.name}</h3>
+            <div className="text-center mb-1">
+              <h3 className="font-bold text-sm truncate text-white drop-shadow-lg">{pokemon.name}</h3>
               <div className="flex justify-center gap-1 flex-wrap">
                 {pokemon.types.map((type, index) => (
-                  <span key={index} className={`text-xs font-bold uppercase px-2 py-1 rounded text-white ${getTypeBgColor(type)} drop-shadow-md`}>
+                  <span key={index} className={`text-xs font-bold uppercase px-1 py-0.5 rounded text-white ${getTypeBgColor(type)} drop-shadow-md`}>
                     {type}
                   </span>
                 ))}
               </div>
             </div>
             
-            <div className="flex-1 flex justify-center items-center mb-2">
+            <div className="flex-1 flex justify-center items-center mb-1">
               <Image
                 src={pokemon.image}
                 alt={pokemon.name}
@@ -113,33 +113,33 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
               />
             </div>
             
-            <div className="space-y-2">
-              <div className="bg-gray-600 border border-gray-800 rounded px-2 py-1 text-center shadow-lg">
-                <div className="text-xs font-bold text-white">HIT POINTS</div>
-                <div className="text-lg font-bold text-white">{pokemon.hp}</div>
+            <div className="space-y-1">
+              <div className="bg-gray-800 border border-gray-900 rounded px-1 py-0.5 text-center shadow-lg">
+                <div className="text-xs font-bold text-white">HP</div>
+                <div className="text-sm font-bold text-white">{pokemon.hp}</div>
               </div>
               
-              <div className="text-xs flex justify-between">
-                <div className="text-center bg-orange-600 rounded px-2 py-1 shadow-md">
-                  <div className="font-bold text-white">ATK</div>
-                  <div className="font-bold text-white">{pokemon.attack}</div>
+              <div className="text-xs flex justify-between gap-1">
+                <div className="text-center bg-orange-800 rounded px-1 py-0.5 shadow-md flex-1">
+                  <div className="font-bold text-white text-xs">ATK</div>
+                  <div className="font-bold text-white text-xs">{pokemon.attack}</div>
                 </div>
-                <div className="text-center bg-blue-600 rounded px-2 py-1 shadow-md">
-                  <div className="font-bold text-white">DEF</div>
-                  <div className="font-bold text-white">{pokemon.defense}</div>
+                <div className="text-center bg-blue-800 rounded px-1 py-0.5 shadow-md flex-1">
+                  <div className="font-bold text-white text-xs">DEF</div>
+                  <div className="font-bold text-white text-xs">{pokemon.defense}</div>
                 </div>
               </div>
             </div>
             
-            <div className="mt-2 bg-purple-600 border border-purple-800 rounded px-2 py-1 shadow-lg">
-              <div className="text-xs font-bold text-white text-center">SPECIAL MOVE</div>
-              <div className="font-bold text-center text-sm text-white">{pokemon.specialMove.name}</div>
-              <div className="text-center text-yellow-300 font-bold">⚡ {pokemon.specialMove.damage} DMG</div>
+            <div className="mt-1 bg-purple-800 border border-purple-900 rounded px-1 py-0.5 shadow-lg">
+              <div className="text-xs font-bold text-white text-center">MOVE</div>
+              <div className="font-bold text-center text-xs text-white truncate">{pokemon.specialMove.name}</div>
+              <div className="text-center text-yellow-300 font-bold text-xs">⚡ {pokemon.specialMove.damage}</div>
             </div>
             
-            <div className="mt-2 text-center">
-              <div className="text-xs text-white bg-black bg-opacity-60 rounded px-2 py-1 font-medium">
-                Double-click to flip
+            <div className="mt-1 text-center">
+              <div className="text-xs text-white bg-black bg-opacity-60 rounded px-1 py-0.5 font-medium">
+                Double-click
               </div>
             </div>
           </div>

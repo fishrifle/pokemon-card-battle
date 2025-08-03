@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { pokemonCards } from '@/data/pokemonData';
+import { getPokemonCards } from '@/data/pokemonData';
 import { PokemonCard as PokemonCardType } from '@/types/pokemon';
 import PokemonCard from '@/components/PokemonCard';
 import { useRouter } from 'next/navigation';
@@ -12,19 +12,38 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [rarityFilter, setRarityFilter] = useState('all');
+  const [pokemonCards, setPokemonCards] = useState<PokemonCardType[]>([]);
+  const [showTutorial, setShowTutorial] = useState(false);
   const router = useRouter();
   const { playBackgroundMusic } = useSound();
 
-  // Removed auto-starting background music
+  useEffect(() => {
+    // Load fresh pokemon data on component mount
+    const cards = getPokemonCards();
+    console.log('Loaded Pokemon cards:', cards.length);
+    setPokemonCards(cards);
+    
+    // Show tutorial for first-time users
+    const hasSeenTutorial = localStorage.getItem('hasSeenTutorial');
+    if (!hasSeenTutorial) {
+      setShowTutorial(true);
+    }
+  }, []);
+
+  const closeTutorial = () => {
+    setShowTutorial(false);
+    localStorage.setItem('hasSeenTutorial', 'true');
+  };
 
   const filteredCards = useMemo(() => {
+    if (!pokemonCards.length) return [];
     return pokemonCards.filter(card => {
       const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesType = typeFilter === 'all' || card.types.includes(typeFilter);
       const matchesRarity = rarityFilter === 'all' || card.rarity === rarityFilter;
       return matchesSearch && matchesType && matchesRarity;
     });
-  }, [searchTerm, typeFilter, rarityFilter]);
+  }, [pokemonCards, searchTerm, typeFilter, rarityFilter]);
 
   const handleCardSelect = (card: PokemonCardType) => {
     if (selectedCards.includes(card)) {
@@ -45,7 +64,7 @@ export default function Home() {
   const rarities = ['all', 'common', 'uncommon', 'rare', 'legendary'];
 
   return (
-    <div className="min-h-screen bg-black p-4">
+    <div className="min-h-screen bg-gray-800 p-4">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-4xl font-bold text-center mb-8 text-white drop-shadow-lg">
           Pokemon Card Battle Arena
@@ -86,14 +105,9 @@ export default function Home() {
             </select>
           </div>
           
-          <div className="text-center">
-            <p className="text-lg mb-4 text-white">
-              Selected: {selectedCards.length}/2 cards
-            </p>
-          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 justify-items-center">
+        <div className="grid grid-cols-6 gap-4 justify-items-center">
           {filteredCards.map(card => (
             <PokemonCard
               key={card.id}
@@ -104,11 +118,15 @@ export default function Home() {
           ))}
         </div>
 
-        {filteredCards.length === 0 && (
+        {pokemonCards.length === 0 ? (
+          <div className="text-center text-white mt-8">
+            <p className="text-xl">Loading Pokemon...</p>
+          </div>
+        ) : filteredCards.length === 0 ? (
           <div className="text-center text-white mt-8">
             <p className="text-xl">No Pokemon found matching your criteria.</p>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Floating Battle Button */}
@@ -134,6 +152,46 @@ export default function Home() {
           </div>
         ))}
       </div>
+
+      {/* Tutorial Popup */}
+      {showTutorial && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-lg mx-auto shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold text-center mb-4 text-gray-800">
+              🎮 Pokemon Battle Guide
+            </h2>
+            
+            <div className="space-y-3 text-gray-700 text-sm">
+              <div className="border-l-4 border-blue-500 pl-3">
+                <h3 className="font-bold">🃏 Card Selection</h3>
+                <p>• Click cards to select (choose 2)</p>
+                <p>• <strong>Double-click to flip and see wins/losses!</strong></p>
+              </div>
+              
+              <div className="border-l-4 border-red-500 pl-3">
+                <h3 className="font-bold">⚔️ Battle</h3>
+                <p>• Click floating "BATTLE!" button</p>
+                <p>• Take turns attacking with dice + stats</p>
+              </div>
+              
+              <div className="border-l-4 border-green-500 pl-3">
+                <h3 className="font-bold">🏆 Progress</h3>
+                <p>• Battle results auto-save</p>
+                <p>• Build your ultimate team!</p>
+              </div>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <button
+                onClick={closeTutorial}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow-lg transition-all hover:scale-105"
+              >
+                Let's Battle! 🚀
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
