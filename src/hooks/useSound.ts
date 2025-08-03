@@ -10,7 +10,7 @@ export const useSound = () => {
     return audioContext.current;
   }, []);
 
-  const playSound = useCallback((frequency: number, duration: number, type: OscillatorType = 'sine', volume: number = 0.1) => {
+  const playSound = useCallback((frequency: number, duration: number, type: OscillatorType = 'sine', volume: number = 0.02) => {
     const ctx = initAudioContext();
     
     const oscillator = ctx.createOscillator();
@@ -31,39 +31,33 @@ export const useSound = () => {
   }, [initAudioContext]);
 
   const playCardSelect = useCallback(() => {
-    playSound(800, 0.1, 'sine', 0.05);
+    playSound(800, 0.05, 'sine', 0.01);
   }, [playSound]);
 
   const playCardFlip = useCallback(() => {
-    playSound(400, 0.15, 'square', 0.03);
-    setTimeout(() => playSound(600, 0.1, 'square', 0.03), 50);
+    playSound(400, 0.08, 'square', 0.008);
+    setTimeout(() => playSound(600, 0.05, 'square', 0.008), 25);
   }, [playSound]);
 
   const playAttack = useCallback((moveType: string) => {
     const soundMap: Record<string, () => void> = {
       Fire: () => {
-        playSound(200, 0.3, 'sawtooth', 0.08);
-        setTimeout(() => playSound(400, 0.2, 'triangle', 0.06), 100);
+        playSound(200, 0.1, 'sawtooth', 0.015);
       },
       Water: () => {
-        playSound(300, 0.4, 'sine', 0.06);
-        setTimeout(() => playSound(250, 0.3, 'sine', 0.04), 150);
+        playSound(300, 0.1, 'sine', 0.012);
       },
       Electric: () => {
-        for (let i = 0; i < 5; i++) {
-          setTimeout(() => playSound(800 + Math.random() * 400, 0.05, 'square', 0.04), i * 30);
-        }
+        playSound(800, 0.05, 'square', 0.01);
       },
       Grass: () => {
-        playSound(350, 0.3, 'triangle', 0.05);
-        setTimeout(() => playSound(280, 0.4, 'sine', 0.04), 100);
+        playSound(350, 0.1, 'triangle', 0.01);
       },
       Psychic: () => {
-        playSound(600, 0.5, 'sine', 0.06);
-        setTimeout(() => playSound(800, 0.3, 'triangle', 0.04), 200);
+        playSound(600, 0.1, 'sine', 0.012);
       },
       default: () => {
-        playSound(400, 0.3, 'square', 0.06);
+        playSound(400, 0.1, 'square', 0.01);
       }
     };
 
@@ -71,28 +65,20 @@ export const useSound = () => {
   }, [playSound]);
 
   const playCriticalHit = useCallback(() => {
-    playSound(1000, 0.1, 'square', 0.08);
-    setTimeout(() => playSound(1200, 0.15, 'sawtooth', 0.06), 50);
-    setTimeout(() => playSound(800, 0.2, 'triangle', 0.04), 100);
+    playSound(1000, 0.05, 'square', 0.015);
   }, [playSound]);
 
   const playVictory = useCallback(() => {
-    const notes = [523, 659, 784, 1047]; // C, E, G, C octave
-    notes.forEach((note, index) => {
-      setTimeout(() => playSound(note, 0.3, 'triangle', 0.06), index * 150);
-    });
+    playSound(659, 0.2, 'triangle', 0.02);
+    setTimeout(() => playSound(784, 0.2, 'triangle', 0.02), 100);
   }, [playSound]);
 
   const playDefeat = useCallback(() => {
-    playSound(400, 0.8, 'sawtooth', 0.05);
-    setTimeout(() => playSound(300, 0.6, 'sine', 0.04), 200);
-    setTimeout(() => playSound(200, 1.0, 'triangle', 0.03), 400);
+    playSound(300, 0.3, 'sine', 0.015);
   }, [playSound]);
 
   const playBattleStart = useCallback(() => {
-    playSound(600, 0.2, 'triangle', 0.06);
-    setTimeout(() => playSound(800, 0.2, 'sine', 0.05), 100);
-    setTimeout(() => playSound(1000, 0.3, 'square', 0.04), 200);
+    playSound(600, 0.1, 'triangle', 0.02);
   }, [playSound]);
 
   const playBackgroundMusic = useCallback(() => {
@@ -111,8 +97,8 @@ export const useSound = () => {
         oscillator.type = 'sine';
         
         gainNode.gain.setValueAtTime(0, ctx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.02, ctx.currentTime + 0.5);
-        gainNode.gain.linearRampToValueAtTime(0.02, ctx.currentTime + duration - 0.5);
+        gainNode.gain.linearRampToValueAtTime(0.005, ctx.currentTime + 0.5);
+        gainNode.gain.linearRampToValueAtTime(0.005, ctx.currentTime + duration - 0.5);
         gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
         
         oscillator.start(ctx.currentTime);
@@ -156,8 +142,8 @@ export const useSound = () => {
       filterNode.Q.value = 0.5;
       
       gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.005, ctx.currentTime + 0.1);
-      gainNode.gain.linearRampToValueAtTime(0.005, ctx.currentTime + 0.8);
+      gainNode.gain.linearRampToValueAtTime(0.002, ctx.currentTime + 0.1);
+      gainNode.gain.linearRampToValueAtTime(0.002, ctx.currentTime + 0.8);
       gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
       
       oscillator.start(ctx.currentTime);

@@ -125,9 +125,9 @@ export default function BattlePage() {
       totalDamage = Math.floor(totalDamage * 1.25);
     }
     
-    // Ensure damage is reasonable (8-18% of defender's max HP for more balanced fights)
-    const minDamage = Math.floor(defender.maxHp * 0.08);
-    const maxDamage = Math.floor(defender.maxHp * 0.18);
+    // Ensure damage is reasonable (20-40% of defender's max HP for faster battles)
+    const minDamage = Math.floor(defender.maxHp * 0.20);
+    const maxDamage = Math.floor(defender.maxHp * 0.40);
     
     return {
       damage: Math.max(minDamage, Math.min(maxDamage, totalDamage)),
