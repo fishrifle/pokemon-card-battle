@@ -42,22 +42,28 @@ export const useSound = () => {
   const playAttack = useCallback((moveType: string) => {
     const soundMap: Record<string, () => void> = {
       Fire: () => {
-        playSound(200, 0.1, 'sawtooth', 0.015);
+        playSound(200, 0.3, 'sawtooth', 0.08);
+        setTimeout(() => playSound(400, 0.2, 'triangle', 0.06), 100);
       },
       Water: () => {
-        playSound(300, 0.1, 'sine', 0.012);
+        playSound(300, 0.4, 'sine', 0.06);
+        setTimeout(() => playSound(250, 0.3, 'sine', 0.04), 150);
       },
       Electric: () => {
-        playSound(800, 0.05, 'square', 0.01);
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => playSound(800 + Math.random() * 400, 0.05, 'square', 0.04), i * 30);
+        }
       },
       Grass: () => {
-        playSound(350, 0.1, 'triangle', 0.01);
+        playSound(350, 0.3, 'triangle', 0.05);
+        setTimeout(() => playSound(280, 0.4, 'sine', 0.04), 100);
       },
       Psychic: () => {
-        playSound(600, 0.1, 'sine', 0.012);
+        playSound(600, 0.5, 'sine', 0.06);
+        setTimeout(() => playSound(800, 0.3, 'triangle', 0.04), 200);
       },
       default: () => {
-        playSound(400, 0.1, 'square', 0.01);
+        playSound(400, 0.3, 'square', 0.06);
       }
     };
 
@@ -65,20 +71,28 @@ export const useSound = () => {
   }, [playSound]);
 
   const playCriticalHit = useCallback(() => {
-    playSound(1000, 0.05, 'square', 0.015);
+    playSound(1000, 0.1, 'square', 0.08);
+    setTimeout(() => playSound(1200, 0.15, 'sawtooth', 0.06), 50);
+    setTimeout(() => playSound(800, 0.2, 'triangle', 0.04), 100);
   }, [playSound]);
 
   const playVictory = useCallback(() => {
-    playSound(659, 0.2, 'triangle', 0.02);
-    setTimeout(() => playSound(784, 0.2, 'triangle', 0.02), 100);
+    const notes = [523, 659, 784, 1047]; // C, E, G, C octave
+    notes.forEach((note, index) => {
+      setTimeout(() => playSound(note, 0.3, 'triangle', 0.06), index * 150);
+    });
   }, [playSound]);
 
   const playDefeat = useCallback(() => {
-    playSound(300, 0.3, 'sine', 0.015);
+    playSound(400, 0.8, 'sawtooth', 0.05);
+    setTimeout(() => playSound(300, 0.6, 'sine', 0.04), 200);
+    setTimeout(() => playSound(200, 1.0, 'triangle', 0.03), 400);
   }, [playSound]);
 
   const playBattleStart = useCallback(() => {
-    playSound(600, 0.1, 'triangle', 0.02);
+    playSound(600, 0.2, 'triangle', 0.06);
+    setTimeout(() => playSound(800, 0.2, 'sine', 0.05), 100);
+    setTimeout(() => playSound(1000, 0.3, 'square', 0.04), 200);
   }, [playSound]);
 
   const playBackgroundMusic = useCallback(() => {

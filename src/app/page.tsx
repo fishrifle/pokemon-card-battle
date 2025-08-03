@@ -15,16 +15,7 @@ export default function Home() {
   const router = useRouter();
   const { playBackgroundMusic } = useSound();
 
-  useEffect(() => {
-    // Start background music after user interaction
-    const startMusic = () => {
-      playBackgroundMusic();
-      document.removeEventListener('click', startMusic);
-    };
-    document.addEventListener('click', startMusic);
-
-    return () => document.removeEventListener('click', startMusic);
-  }, [playBackgroundMusic]);
+  // Removed auto-starting background music
 
   const filteredCards = useMemo(() => {
     return pokemonCards.filter(card => {

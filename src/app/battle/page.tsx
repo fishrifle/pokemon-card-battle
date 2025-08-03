@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PokemonCard as PokemonCardType } from '@/types/pokemon';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -35,6 +35,7 @@ export default function BattlePage() {
   const [screenShake, setScreenShake] = useState(false);
   const router = useRouter();
   const { playAttack, playCriticalHit, playVictory, playDefeat, playArenaAmbience } = useSound();
+  const battleLogRef = useRef<HTMLDivElement>(null);
  
  
  
@@ -49,7 +50,6 @@ export default function BattlePage() {
       
       setTimeout(() => {
         setBattlePhase('fighting');
-        playArenaAmbience();
       }, 1500);
     } else {
       router.push('/');
@@ -166,6 +166,13 @@ export default function BattlePage() {
     };
 
     setBattleLog(prev => [...prev, logEntry]);
+
+    // Auto-scroll to bottom of battle log
+    setTimeout(() => {
+      if (battleLogRef.current) {
+        battleLogRef.current.scrollTop = battleLogRef.current.scrollHeight;
+      }
+    }, 100);
 
     // Play sound effects and show particles
     const primaryType = attacker.types[0];
@@ -406,7 +413,7 @@ export default function BattlePage() {
           y={150}
         />
 
-        <div className="bg-white rounded-lg p-4 shadow-lg max-h-64 overflow-y-auto relative z-10">
+        <div className="bg-white rounded-lg p-4 shadow-lg max-h-64 overflow-y-auto relative z-10" ref={battleLogRef}>
           <h3 className="font-bold text-lg mb-2">Battle Log</h3>
           <div className="space-y-2">
             {battleLog.map((log, index) => (
