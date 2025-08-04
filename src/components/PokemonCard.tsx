@@ -75,6 +75,32 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
     return bgColors[type] || 'bg-gray-800';
   };
 
+  const getSpecialMoveStyle = (moveName: string, primaryType: string) => {
+    // Fall back to Pokemon type with readable colors and subtle effects
+    const typeStyles: Record<string, any> = {
+      Fire: { color: '#ffa500', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Water: { color: '#4682b4', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Grass: { color: '#9acd32', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Electric: { color: '#ffd700', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Psychic: { color: '#da70d6', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Ice: { color: '#87ceeb', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Fighting: { color: '#cd853f', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Poison: { color: '#9370db', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Ground: { color: '#daa520', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Flying: { color: '#87ceeb', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Bug: { color: '#9acd32', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Rock: { color: '#a0522d', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Ghost: { color: '#9370db', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Dragon: { color: '#ff6347', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Dark: { color: '#a9a9a9', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Steel: { color: '#b0c4de', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Fairy: { color: '#ff69b4', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Normal: { color: '#d3d3d3', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }
+    };
+    
+    return typeStyles[primaryType] || typeStyles.Normal;
+  };
+
   return (
     <div 
       className={`relative w-40 h-64 cursor-pointer transition-all duration-300 transform hover:scale-105 ${
@@ -101,6 +127,18 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
                   </span>
                 ))}
               </div>
+              {/* Special Move Display */}
+              {(() => {
+                const moveStyle = getSpecialMoveStyle(pokemon.specialMove.name, pokemon.types[0]);
+                return (
+                  <div 
+                    className="mt-1 text-sm font-bold tracking-wide text-center bg-black bg-opacity-30 rounded px-2 py-1" 
+                    style={moveStyle}
+                  >
+                    {pokemon.specialMove.name}
+                  </div>
+                );
+              })()}
             </div>
             
             <div className="flex-1 flex justify-center items-center mb-1">
@@ -131,17 +169,7 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
               </div>
             </div>
             
-            <div className="mt-1 bg-purple-800 border border-purple-900 rounded px-1 py-0.5 shadow-lg">
-              <div className="text-xs font-bold text-white text-center">MOVE</div>
-              <div className="font-bold text-center text-xs text-white truncate">{pokemon.specialMove.name}</div>
-              <div className="text-center text-yellow-300 font-bold text-xs">⚡ {pokemon.specialMove.damage}</div>
-            </div>
             
-            <div className="mt-1 text-center">
-              <div className="text-xs text-white bg-black bg-opacity-60 rounded px-1 py-0.5 font-medium">
-                Double-click
-              </div>
-            </div>
           </div>
         ) : (
           <div className="flex flex-col h-full justify-center items-center space-y-4 rotateY-180">
@@ -166,9 +194,6 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
               </div>
             </div>
             
-            <div className="text-xs text-center bg-black bg-opacity-60 rounded px-2 py-1 text-white font-medium">
-              Double-click to flip back
-            </div>
           </div>
         )}
       </div>

@@ -107,7 +107,7 @@ export default function Home() {
           
         </div>
 
-        <div className="grid grid-cols-6 gap-4 justify-items-center">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 justify-items-center">
           {filteredCards.map(card => (
             <PokemonCard
               key={card.id}

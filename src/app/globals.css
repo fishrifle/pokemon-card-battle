@@ -203,3 +203,123 @@ body {
 .animate-screen-shake {
   animation: screen-shake 0.5s ease-in-out;
 }
+
+/* Special Move Text Animations */
+@keyframes fire-flicker {
+  0%, 100% { 
+    filter: brightness(1) hue-rotate(0deg);
+    transform: scale(1);
+  }
+  50% { 
+    filter: brightness(1.2) hue-rotate(5deg);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes water-wave {
+  0%, 100% { 
+    transform: translateY(0px) scale(1);
+    filter: brightness(1);
+  }
+  33% { 
+    transform: translateY(-2px) scale(1.01);
+    filter: brightness(1.1);
+  }
+  66% { 
+    transform: translateY(2px) scale(0.99);
+    filter: brightness(0.9);
+  }
+}
+
+@keyframes electric-pulse {
+  0%, 100% { 
+    filter: brightness(1) drop-shadow(0 0 5px #ffff00);
+    transform: scale(1);
+  }
+  50% { 
+    filter: brightness(1.3) drop-shadow(0 0 15px #ffff00);
+    transform: scale(1.03);
+  }
+}
+
+@keyframes nature-glow {
+  0%, 100% { 
+    filter: brightness(1) saturate(1);
+    transform: scale(1);
+  }
+  50% { 
+    filter: brightness(1.1) saturate(1.2);
+    transform: scale(1.01);
+  }
+}
+
+@keyframes psychic-swirl {
+  0% { 
+    transform: rotate(0deg) scale(1);
+    filter: hue-rotate(0deg) brightness(1);
+  }
+  33% { 
+    transform: rotate(120deg) scale(1.01);
+    filter: hue-rotate(15deg) brightness(1.1);
+  }
+  66% { 
+    transform: rotate(240deg) scale(0.99);
+    filter: hue-rotate(-15deg) brightness(0.9);
+  }
+  100% { 
+    transform: rotate(360deg) scale(1);
+    filter: hue-rotate(0deg) brightness(1);
+  }
+}
+
+@keyframes generic-glow {
+  0%, 100% { 
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  50% { 
+    filter: brightness(1.1);
+    transform: scale(1.01);
+  }
+}
+
+/* Dice Rolling Animation */
+@keyframes dice-roll {
+  0% { 
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+  }
+  25% { 
+    transform: rotateX(90deg) rotateY(180deg) rotateZ(45deg);
+  }
+  50% { 
+    transform: rotateX(180deg) rotateY(360deg) rotateZ(90deg);
+  }
+  75% { 
+    transform: rotateX(270deg) rotateY(540deg) rotateZ(135deg);
+  }
+  100% { 
+    transform: rotateX(360deg) rotateY(720deg) rotateZ(180deg);
+  }
+}
+
+@keyframes dice-bounce {
+  0%, 100% { 
+    transform: translateY(0px);
+  }
+  50% { 
+    transform: translateY(-10px);
+  }
+}
+
+.dice-rolling {
+  animation: dice-roll 1s ease-in-out, dice-bounce 1s ease-in-out;
+  transform-style: preserve-3d;
+}
+
+.dice-idle {
+  transition: transform 0.2s ease;
+}
+
+.dice-idle:hover {
+  transform: scale(1.1) rotateX(10deg) rotateY(10deg);
+}
