@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { PokemonCard as PokemonCardType } from '@/types/pokemon';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -10,18 +10,14 @@ import ParticleEffect from '@/components/ParticleEffect';
 interface BattleLog {
   attacker: string;
   defender: string;
-  move: string;
   damage: number;
   critical: boolean;
-  typeEffectiveness: number;
   attackerRoll: number;
   defenderRoll: number;
-  attackerName: string;
-  defenderName: string;
 }
 
-// Visual Dice Component - Shows dots like a real die
-const DiceFace = ({ value, color }: { value: number; color: 'red' | 'blue' }) => {
+// Compact Dice Component
+const DiceFace = ({ value, color, size = 'normal' }: { value: number; color: 'red' | 'blue'; size?: 'normal' | 'small' }) => {
   const dotPositions: Record<number, string[]> = {
     1: ['center'],
     2: ['top-right', 'bottom-left'],
@@ -33,25 +29,28 @@ const DiceFace = ({ value, color }: { value: number; color: 'red' | 'blue' }) =>
 
   const positions = dotPositions[value] || [];
   const colorClasses = color === 'red'
-    ? 'bg-gradient-to-br from-red-500 to-red-700 border-red-300 shadow-red-500/50'
-    : 'bg-gradient-to-br from-blue-500 to-blue-700 border-blue-300 shadow-blue-500/50';
+    ? 'bg-gradient-to-br from-red-500 to-red-700 border-red-300'
+    : 'bg-gradient-to-br from-blue-500 to-blue-700 border-blue-300';
+
+  const sizeClasses = size === 'small' ? 'w-12 h-12' : 'w-14 h-14 md:w-16 md:h-16';
+  const dotSize = size === 'small' ? 'w-1.5 h-1.5' : 'w-2 h-2';
 
   return (
-    <div className={`relative w-20 h-20 md:w-24 md:h-24 rounded-xl ${colorClasses} border-4 shadow-2xl`}>
+    <div className={`relative ${sizeClasses} rounded-lg ${colorClasses} border-2 shadow-lg`}>
       {positions.map((pos, idx) => {
         const positionClasses: Record<string, string> = {
           'center': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-          'top-left': 'top-2 left-2',
-          'top-right': 'top-2 right-2',
-          'middle-left': 'top-1/2 left-2 -translate-y-1/2',
-          'middle-right': 'top-1/2 right-2 -translate-y-1/2',
-          'bottom-left': 'bottom-2 left-2',
-          'bottom-right': 'bottom-2 right-2',
+          'top-left': 'top-1.5 left-1.5',
+          'top-right': 'top-1.5 right-1.5',
+          'middle-left': 'top-1/2 left-1.5 -translate-y-1/2',
+          'middle-right': 'top-1/2 right-1.5 -translate-y-1/2',
+          'bottom-left': 'bottom-1.5 left-1.5',
+          'bottom-right': 'bottom-1.5 right-1.5',
         };
         return (
           <div
             key={idx}
-            className={`absolute w-3 h-3 md:w-4 md:h-4 bg-white rounded-full shadow-md ${positionClasses[pos]}`}
+            className={`absolute ${dotSize} bg-white rounded-full ${positionClasses[pos]}`}
           />
         );
       })}
@@ -66,23 +65,18 @@ export default function BattlePage() {
   const [currentTurn, setCurrentTurn] = useState<'player1' | 'player2'>('player1');
   const [battlePhase, setBattlePhase] = useState<'setup' | 'fighting' | 'finished'>('setup');
   const [winner, setWinner] = useState<'player1' | 'player2' | null>(null);
-  const [battleLog, setBattleLog] = useState<BattleLog[]>([]);
+  const [lastAction, setLastAction] = useState<BattleLog | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showParticles, setShowParticles] = useState(false);
   const [particleType, setParticleType] = useState<'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'>('impact');
-  const [showDamageText, setShowDamageText] = useState(false);
-  const [damageAmount, setDamageAmount] = useState(0);
   const [screenShake, setScreenShake] = useState(false);
 
-  // Each player has their own dice
   const [player1Dice, setPlayer1Dice] = useState<number>(1);
   const [player2Dice, setPlayer2Dice] = useState<number>(1);
-  const [player1Rolling, setPlayer1Rolling] = useState(false);
-  const [player2Rolling, setPlayer2Rolling] = useState(false);
+  const [isRolling, setIsRolling] = useState(false);
 
   const router = useRouter();
   const { playAttack, playCriticalHit, playVictory, playDefeat } = useSound();
-  const battleLogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const savedCards = localStorage.getItem('battleCards');
@@ -91,10 +85,7 @@ export default function BattlePage() {
       setBattleCards(cards);
       setPlayer1Card({ ...cards[0] });
       setPlayer2Card({ ...cards[1] });
-
-      setTimeout(() => {
-        setBattlePhase('fighting');
-      }, 1000);
+      setTimeout(() => setBattlePhase('fighting'), 800);
     } else {
       router.push('/');
     }
@@ -115,12 +106,9 @@ export default function BattlePage() {
       Grass: ['Water', 'Ground', 'Rock'],
       Electric: ['Water', 'Flying'],
       Psychic: ['Fighting', 'Poison'],
-      Ice: ['Grass', 'Ground', 'Flying', 'Dragon'],
       Fighting: ['Normal', 'Rock', 'Steel', 'Ice', 'Dark'],
-      Poison: ['Grass', 'Fairy'],
       Ground: ['Fire', 'Electric', 'Poison', 'Rock', 'Steel'],
       Flying: ['Grass', 'Fighting', 'Bug'],
-      Bug: ['Grass', 'Psychic', 'Dark'],
       Rock: ['Fire', 'Ice', 'Flying', 'Bug'],
       Ghost: ['Psychic', 'Ghost'],
       Dragon: ['Dragon'],
@@ -131,12 +119,8 @@ export default function BattlePage() {
 
     for (const attackType of attackerTypes) {
       for (const defenderType of defenderTypes) {
-        if (effectiveness[attackType]?.includes(defenderType)) {
-          return 1.25;
-        }
-        if (effectiveness[defenderType]?.includes(attackType)) {
-          return 0.8;
-        }
+        if (effectiveness[attackType]?.includes(defenderType)) return 1.25;
+        if (effectiveness[defenderType]?.includes(attackType)) return 0.8;
       }
     }
     return 1.0;
@@ -146,33 +130,24 @@ export default function BattlePage() {
     if (!player1Card || !player2Card || isAnimating || battlePhase !== 'fighting') return;
 
     setIsAnimating(true);
-    setPlayer1Rolling(true);
-    setPlayer2Rolling(true);
+    setIsRolling(true);
 
-    // Animate BOTH dice rolling independently
     let rollCount = 0;
     const rollInterval = setInterval(() => {
       setPlayer1Dice(rollDice());
       setPlayer2Dice(rollDice());
       rollCount++;
 
-      if (rollCount >= 12) {
+      if (rollCount >= 10) {
         clearInterval(rollInterval);
-
-        // Final rolls for each player
         const finalP1 = rollDice();
         const finalP2 = rollDice();
         setPlayer1Dice(finalP1);
         setPlayer2Dice(finalP2);
-        setPlayer1Rolling(false);
-        setPlayer2Rolling(false);
-
-        // Process battle after dice stop
-        setTimeout(() => {
-          processBattle(finalP1, finalP2);
-        }, 400);
+        setIsRolling(false);
+        setTimeout(() => processBattle(finalP1, finalP2), 300);
       }
-    }, 70);
+    }, 60);
   };
 
   const processBattle = (p1Roll: number, p2Roll: number) => {
@@ -184,149 +159,82 @@ export default function BattlePage() {
 
     if (!attacker || !defender) return;
 
-    // SIMPLE DAMAGE FORMULA:
-    // Base damage from move + attacker's roll bonus - defender's roll reduction
     const baseDamage = Math.floor(attacker.specialMove.damage * 0.2);
-    const attackBonus = attackerRoll * 5; // Each pip = 5 damage
-    const defenseReduction = defenderRoll * 3; // Each pip = 3 damage blocked
-
-    // Critical hit on rolling 6
+    const attackBonus = attackerRoll * 5;
+    const defenseReduction = defenderRoll * 3;
     const isCritical = attackerRoll === 6;
     const typeMultiplier = getTypeEffectiveness(attacker.types, defender.types);
 
-    // Calculate damage
     let rawDamage = baseDamage + attackBonus - defenseReduction;
     rawDamage = Math.floor(rawDamage * typeMultiplier);
+    if (isCritical) rawDamage = Math.floor(rawDamage * 1.5);
 
-    if (isCritical) {
-      rawDamage = Math.floor(rawDamage * 1.5);
-    }
-
-    // Minimum 15% of max HP, maximum 50% of max HP per hit
     const minDamage = Math.floor(defender.maxHp * 0.15);
     const maxDamage = Math.floor(defender.maxHp * 0.50);
     const finalDamage = Math.max(minDamage, Math.min(maxDamage, Math.max(1, rawDamage)));
-
     const newHP = Math.max(0, defender.hp - finalDamage);
 
-    const logEntry: BattleLog = {
+    setLastAction({
       attacker: attacker.name,
       defender: defender.name,
-      move: attacker.specialMove.name,
       damage: finalDamage,
       critical: isCritical,
-      typeEffectiveness: typeMultiplier,
       attackerRoll,
       defenderRoll,
-      attackerName: isP1Turn ? 'Player 1' : 'Player 2',
-      defenderName: isP1Turn ? 'Player 2' : 'Player 1',
-    };
+    });
 
-    setBattleLog(prev => [...prev, logEntry]);
-
-    // Visual feedback
-    setDamageAmount(finalDamage);
-    setShowDamageText(true);
-    setTimeout(() => setShowDamageText(false), 1200);
-
-    // Auto-scroll battle log
-    setTimeout(() => {
-      if (battleLogRef.current) {
-        battleLogRef.current.scrollTop = battleLogRef.current.scrollHeight;
-      }
-    }, 100);
-
-    // Sound and particle effects
     const primaryType = attacker.types[0];
     playAttack(primaryType);
 
-    const typeToParticle = (type: string): 'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact' => {
-      const typeMap: Record<string, 'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'> = {
-        Fire: 'fire',
-        Water: 'water',
-        Electric: 'electric',
-        Grass: 'grass',
-        Psychic: 'psychic'
-      };
-      return typeMap[type] || 'impact';
+    const typeMap: Record<string, 'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'> = {
+      Fire: 'fire', Water: 'water', Electric: 'electric', Grass: 'grass', Psychic: 'psychic'
     };
-
-    setParticleType(typeToParticle(primaryType));
+    setParticleType(typeMap[primaryType] || 'impact');
     setShowParticles(true);
 
     if (isCritical) {
-      setTimeout(() => playCriticalHit(), 150);
+      setTimeout(() => playCriticalHit(), 100);
       setScreenShake(true);
-      setTimeout(() => setScreenShake(false), 400);
+      setTimeout(() => setScreenShake(false), 300);
     }
 
-    // Update HP
     if (isP1Turn) {
       setPlayer2Card(prev => prev ? { ...prev, hp: newHP } : null);
     } else {
       setPlayer1Card(prev => prev ? { ...prev, hp: newHP } : null);
     }
 
-    // Check for winner or switch turns
     setTimeout(() => {
       if (newHP <= 0) {
         setWinner(currentTurn);
         setBattlePhase('finished');
         setTimeout(() => {
           playVictory();
-          setTimeout(() => playDefeat(), 400);
-        }, 200);
+          setTimeout(() => playDefeat(), 300);
+        }, 150);
       } else {
         setCurrentTurn(isP1Turn ? 'player2' : 'player1');
       }
       setIsAnimating(false);
-    }, 700);
-  };
-
-  const getSpecialMoveStyle = (moveName: string) => {
-    const lowerName = moveName.toLowerCase();
-
-    if (lowerName.includes('flame') || lowerName.includes('fire') || lowerName.includes('burn')) {
-      return { color: '#ff4500', textShadow: '0 0 8px #ff4500' };
-    } else if (lowerName.includes('water') || lowerName.includes('surf') || lowerName.includes('hydro')) {
-      return { color: '#1e90ff', textShadow: '0 0 8px #1e90ff' };
-    } else if (lowerName.includes('thunder') || lowerName.includes('electric') || lowerName.includes('shock')) {
-      return { color: '#ffd700', textShadow: '0 0 8px #ffd700' };
-    } else if (lowerName.includes('leaf') || lowerName.includes('vine') || lowerName.includes('solar')) {
-      return { color: '#32cd32', textShadow: '0 0 8px #32cd32' };
-    } else if (lowerName.includes('psychic') || lowerName.includes('mind') || lowerName.includes('confusion')) {
-      return { color: '#da70d6', textShadow: '0 0 8px #da70d6' };
-    }
-    return { color: '#708090', textShadow: '0 0 8px #708090' };
+    }, 600);
   };
 
   const updatePokemonStats = () => {
     if (!winner || !battleCards.length) return;
-
     const winnerCard = winner === 'player1' ? battleCards[0] : battleCards[1];
     const loserCard = winner === 'player1' ? battleCards[1] : battleCards[0];
 
     const existingStats = localStorage.getItem('pokemonStats');
     let allPokemonStats: Record<number, {wins: number, losses: number}> = {};
-
     if (existingStats) {
-      try {
-        allPokemonStats = JSON.parse(existingStats);
-      } catch {
-        // Ignore parse errors
-      }
+      try { allPokemonStats = JSON.parse(existingStats); } catch { /* ignore */ }
     }
 
-    if (!allPokemonStats[winnerCard.id]) {
-      allPokemonStats[winnerCard.id] = { wins: 0, losses: 0 };
-    }
-    if (!allPokemonStats[loserCard.id]) {
-      allPokemonStats[loserCard.id] = { wins: 0, losses: 0 };
-    }
+    if (!allPokemonStats[winnerCard.id]) allPokemonStats[winnerCard.id] = { wins: 0, losses: 0 };
+    if (!allPokemonStats[loserCard.id]) allPokemonStats[loserCard.id] = { wins: 0, losses: 0 };
 
     allPokemonStats[winnerCard.id].wins += 1;
     allPokemonStats[loserCard.id].losses += 1;
-
     localStorage.setItem('pokemonStats', JSON.stringify(allPokemonStats));
   };
 
@@ -337,261 +245,170 @@ export default function BattlePage() {
 
   if (!player1Card || !player2Card) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-        <div className="text-2xl text-white">Loading battle...</div>
+      <div className="h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-xl text-white">Loading...</div>
       </div>
     );
   }
 
+  const hpPercent = (hp: number, max: number) => (hp / max) * 100;
+  const hpColor = (hp: number, max: number) => {
+    const pct = hp / max;
+    if (pct > 0.6) return 'bg-green-500';
+    if (pct > 0.3) return 'bg-yellow-500';
+    return 'bg-red-500';
+  };
+
   return (
-    <div className={`min-h-screen relative p-2 md:p-4 ${screenShake ? 'animate-screen-shake' : ''}`} style={{
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
-    }}>
-      {/* Arena Effects */}
-      <div className="absolute inset-0 opacity-20">
-        <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-amber-900 via-amber-800 to-transparent"></div>
+    <div
+      className={`h-screen w-screen overflow-hidden flex flex-col ${screenShake ? 'animate-pulse' : ''}`}
+      style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)' }}
+    >
+      {/* Header - Turn indicator */}
+      <div className="flex-none p-2 text-center">
+        <h1 className="text-lg md:text-2xl font-bold text-white">
+          {battlePhase === 'finished' ? (
+            <span className="text-yellow-400">
+              🏆 {winner === 'player1' ? player1Card.name : player2Card.name} Wins!
+            </span>
+          ) : (
+            <span className={currentTurn === 'player1' ? 'text-red-400' : 'text-blue-400'}>
+              {currentTurn === 'player1' ? player1Card.name : player2Card.name}&apos;s Turn
+            </span>
+          )}
+        </h1>
       </div>
 
-      {isAnimating && (
-        <div className="absolute inset-0 bg-red-500 opacity-5 animate-pulse"></div>
-      )}
+      {/* Main Battle Area */}
+      <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-2 md:gap-8 px-2 min-h-0">
 
-      {winner && (
-        <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/10 to-orange-500/10"></div>
-      )}
-
-      <div className="max-w-6xl mx-auto relative z-10">
-        <h1 className="text-2xl md:text-4xl font-bold text-center mb-4 text-white drop-shadow-lg">
-          ⚔️ Battle Arena ⚔️
-        </h1>
-
-        {/* Turn Indicator & Roll Button - TOP CENTER */}
-        <div className="text-center mb-4">
-          {battlePhase === 'fighting' && (
-            <div className="space-y-2">
-              <div className="text-xl md:text-2xl font-bold text-white drop-shadow-lg">
-                {currentTurn === 'player1' ? (
-                  <span className="text-red-400">{player1Card.name}&apos;s Turn (Player 1)</span>
-                ) : (
-                  <span className="text-blue-400">{player2Card.name}&apos;s Turn (Player 2)</span>
-                )}
-              </div>
-
-              <button
-                onClick={performAction}
-                disabled={isAnimating}
-                className={`px-10 py-4 text-xl font-bold rounded-xl shadow-xl transform transition-all ${
-                  isAnimating
-                    ? 'bg-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:scale-110 hover:shadow-2xl'
-                } text-white border-4 border-yellow-300`}
-              >
-                {(player1Rolling || player2Rolling) ? '🎲 Rolling...' : '🎲 ATTACK!'}
-              </button>
-
-              <div className="text-sm text-gray-300">
-                Higher roll = More damage! Roll 6 = Critical Hit!
-              </div>
+        {/* Player 1 */}
+        <div className={`flex flex-row md:flex-col items-center gap-2 md:gap-3 ${winner === 'player2' ? 'opacity-40' : ''}`}>
+          {/* Card */}
+          <div className={`bg-white rounded-lg p-2 shadow-lg border-4 ${currentTurn === 'player1' && battlePhase === 'fighting' ? 'border-yellow-400' : 'border-red-500'}`}>
+            <div className="text-center">
+              <span className="text-xs font-bold text-red-600">P1</span>
+              <h3 className="font-bold text-sm md:text-base text-gray-800 truncate max-w-[80px] md:max-w-[100px]">{player1Card.name}</h3>
             </div>
+            <Image
+              src={player1Card.image}
+              alt={player1Card.name}
+              width={70}
+              height={70}
+              className="mx-auto pixelated md:w-[90px] md:h-[90px]"
+            />
+            <div className="mt-1">
+              <div className="bg-gray-300 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all duration-300 ${hpColor(player1Card.hp, player1Card.maxHp)}`}
+                  style={{ width: `${hpPercent(player1Card.hp, player1Card.maxHp)}%` }}
+                />
+              </div>
+              <div className="text-center text-xs font-bold">{player1Card.hp}/{player1Card.maxHp}</div>
+            </div>
+          </div>
+
+          {/* Dice */}
+          <div className="flex flex-col items-center">
+            <div className={isRolling ? 'animate-bounce' : ''}>
+              <DiceFace value={player1Dice} color="red" size="small" />
+            </div>
+            <span className="text-lg font-bold text-red-400">{player1Dice}</span>
+          </div>
+        </div>
+
+        {/* Center - VS & Button */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-2xl md:text-4xl font-bold text-yellow-400">VS</div>
+
+          {battlePhase === 'fighting' && (
+            <button
+              onClick={performAction}
+              disabled={isAnimating}
+              className={`px-6 py-3 md:px-8 md:py-4 text-base md:text-lg font-bold rounded-xl shadow-lg transition-all ${
+                isAnimating
+                  ? 'bg-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:scale-105 active:scale-95'
+              } text-white border-2 border-yellow-300`}
+            >
+              {isRolling ? '🎲...' : '⚔️ ATTACK!'}
+            </button>
           )}
 
           {battlePhase === 'finished' && (
-            <div className="space-y-4">
-              <div className="text-2xl md:text-3xl font-bold text-green-400 drop-shadow-lg animate-pulse">
-                🏆 {winner === 'player1' ? player1Card.name : player2Card.name} Wins! 🏆
+            <button
+              onClick={returnToSelection}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg"
+            >
+              Play Again
+            </button>
+          )}
+
+          {/* Last Action Display */}
+          {lastAction && (
+            <div className="bg-gray-800/90 rounded-lg px-3 py-2 text-center max-w-[200px] md:max-w-[280px]">
+              <div className="text-white text-xs md:text-sm">
+                <span className="text-yellow-400 font-bold">{lastAction.attacker}</span>
+                {' → '}
+                <span className="text-orange-400 font-bold">{lastAction.damage}</span>
+                {' dmg'}
+                {lastAction.critical && <span className="text-red-400"> ⚡CRIT!</span>}
               </div>
-              <button
-                onClick={returnToSelection}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-xl shadow-lg transform transition-transform hover:scale-105"
-              >
-                Return to Card Selection
-              </button>
+              <div className="text-gray-400 text-xs">
+                🎲 {lastAction.attackerRoll} vs 🛡️ {lastAction.defenderRoll}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Battle Arena - Players on opposite sides */}
-        <div className="flex flex-col md:flex-row justify-between items-stretch gap-4 md:gap-8 mb-4">
-
-          {/* PLAYER 1 - Left Side with RED Dice */}
-          <div className={`flex-1 transform transition-all duration-500 ${
-            battlePhase === 'setup' ? 'animate-slide-in-left' : ''
-          } ${isAnimating && currentTurn === 'player1' ? 'scale-105' : ''} ${
-            winner === 'player2' ? 'opacity-50 grayscale' : ''
-          } ${winner === 'player1' ? 'ring-4 ring-yellow-400' : ''}`}>
-
-            <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl p-4 border-4 border-red-500 shadow-2xl">
-              {/* Player Label */}
-              <div className="text-center mb-2">
-                <span className="bg-red-600 text-white px-4 py-1 rounded-full text-lg font-bold">
-                  PLAYER 1
-                </span>
+        {/* Player 2 */}
+        <div className={`flex flex-row-reverse md:flex-col items-center gap-2 md:gap-3 ${winner === 'player1' ? 'opacity-40' : ''}`}>
+          {/* Card */}
+          <div className={`bg-white rounded-lg p-2 shadow-lg border-4 ${currentTurn === 'player2' && battlePhase === 'fighting' ? 'border-yellow-400' : 'border-blue-500'}`}>
+            <div className="text-center">
+              <span className="text-xs font-bold text-blue-600">P2</span>
+              <h3 className="font-bold text-sm md:text-base text-gray-800 truncate max-w-[80px] md:max-w-[100px]">{player2Card.name}</h3>
+            </div>
+            <Image
+              src={player2Card.image}
+              alt={player2Card.name}
+              width={70}
+              height={70}
+              className="mx-auto pixelated md:w-[90px] md:h-[90px]"
+            />
+            <div className="mt-1">
+              <div className="bg-gray-300 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all duration-300 ${hpColor(player2Card.hp, player2Card.maxHp)}`}
+                  style={{ width: `${hpPercent(player2Card.hp, player2Card.maxHp)}%` }}
+                />
               </div>
-
-              {/* Pokemon Card */}
-              <div className="bg-white rounded-lg p-3 mb-4">
-                <h3 className="font-bold text-xl text-center text-gray-800">{player1Card.name}</h3>
-                <div className="text-center text-xs font-bold mb-2" style={getSpecialMoveStyle(player1Card.specialMove.name)}>
-                  {player1Card.specialMove.name}
-                </div>
-                <Image src={player1Card.image} alt={player1Card.name} width={120} height={120} className="mx-auto pixelated" />
-
-                {/* HP Bar */}
-                <div className="mt-3">
-                  <div className="bg-gray-300 rounded-full h-5 overflow-hidden">
-                    <div
-                      className={`h-5 rounded-full transition-all duration-500 ${
-                        player1Card.hp / player1Card.maxHp > 0.6 ? 'bg-green-500' :
-                        player1Card.hp / player1Card.maxHp > 0.3 ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'
-                      }`}
-                      style={{ width: `${(player1Card.hp / player1Card.maxHp) * 100}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-center text-sm font-bold mt-1">HP: {player1Card.hp}/{player1Card.maxHp}</div>
-                </div>
-              </div>
-
-              {/* Player 1's RED DICE */}
-              <div className="flex flex-col items-center">
-                <div className="text-white font-bold mb-2 text-lg">🎲 Your Roll</div>
-                <div className={`transition-transform ${player1Rolling ? 'animate-spin' : ''}`}>
-                  <DiceFace value={player1Dice} color="red" />
-                </div>
-                <div className="text-3xl font-bold text-red-400 mt-2">
-                  {player1Dice}
-                </div>
-              </div>
+              <div className="text-center text-xs font-bold">{player2Card.hp}/{player2Card.maxHp}</div>
             </div>
           </div>
 
-          {/* VS Divider */}
-          <div className="flex items-center justify-center">
-            <div className="text-4xl md:text-6xl font-bold text-yellow-400 drop-shadow-lg">
-              VS
+          {/* Dice */}
+          <div className="flex flex-col items-center">
+            <div className={isRolling ? 'animate-bounce' : ''}>
+              <DiceFace value={player2Dice} color="blue" size="small" />
             </div>
-          </div>
-
-          {/* PLAYER 2 - Right Side with BLUE Dice */}
-          <div className={`flex-1 transform transition-all duration-500 ${
-            battlePhase === 'setup' ? 'animate-slide-in-right' : ''
-          } ${isAnimating && currentTurn === 'player2' ? 'scale-105' : ''} ${
-            winner === 'player1' ? 'opacity-50 grayscale' : ''
-          } ${winner === 'player2' ? 'ring-4 ring-yellow-400' : ''}`}>
-
-            <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-xl p-4 border-4 border-blue-500 shadow-2xl">
-              {/* Player Label */}
-              <div className="text-center mb-2">
-                <span className="bg-blue-600 text-white px-4 py-1 rounded-full text-lg font-bold">
-                  PLAYER 2
-                </span>
-              </div>
-
-              {/* Pokemon Card */}
-              <div className="bg-white rounded-lg p-3 mb-4">
-                <h3 className="font-bold text-xl text-center text-gray-800">{player2Card.name}</h3>
-                <div className="text-center text-xs font-bold mb-2" style={getSpecialMoveStyle(player2Card.specialMove.name)}>
-                  {player2Card.specialMove.name}
-                </div>
-                <Image src={player2Card.image} alt={player2Card.name} width={120} height={120} className="mx-auto pixelated" />
-
-                {/* HP Bar */}
-                <div className="mt-3">
-                  <div className="bg-gray-300 rounded-full h-5 overflow-hidden">
-                    <div
-                      className={`h-5 rounded-full transition-all duration-500 ${
-                        player2Card.hp / player2Card.maxHp > 0.6 ? 'bg-green-500' :
-                        player2Card.hp / player2Card.maxHp > 0.3 ? 'bg-yellow-500' : 'bg-red-500 animate-pulse'
-                      }`}
-                      style={{ width: `${(player2Card.hp / player2Card.maxHp) * 100}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-center text-sm font-bold mt-1">HP: {player2Card.hp}/{player2Card.maxHp}</div>
-                </div>
-              </div>
-
-              {/* Player 2's BLUE DICE */}
-              <div className="flex flex-col items-center">
-                <div className="text-white font-bold mb-2 text-lg">🎲 Your Roll</div>
-                <div className={`transition-transform ${player2Rolling ? 'animate-spin' : ''}`}>
-                  <DiceFace value={player2Dice} color="blue" />
-                </div>
-                <div className="text-3xl font-bold text-blue-400 mt-2">
-                  {player2Dice}
-                </div>
-              </div>
-            </div>
+            <span className="text-lg font-bold text-blue-400">{player2Dice}</span>
           </div>
         </div>
+      </div>
 
-        {/* Particle Effects */}
-        <ParticleEffect
-          type={particleType}
-          isActive={showParticles}
-          onComplete={() => setShowParticles(false)}
-          x={200}
-          y={150}
-        />
+      {/* Particle Effects */}
+      <ParticleEffect
+        type={particleType}
+        isActive={showParticles}
+        onComplete={() => setShowParticles(false)}
+        x={typeof window !== 'undefined' ? window.innerWidth / 2 : 200}
+        y={typeof window !== 'undefined' ? window.innerHeight / 2 : 200}
+      />
 
-        {/* Floating Damage Text */}
-        {showDamageText && (
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
-            <div className="text-7xl font-bold text-red-500 drop-shadow-lg animate-bounce">
-              -{damageAmount}
-            </div>
-          </div>
-        )}
-
-        {/* Battle Log - Shows exactly what happened */}
-        <div className="bg-gray-900 rounded-xl p-4 shadow-lg max-h-48 overflow-y-auto border-2 border-gray-700" ref={battleLogRef}>
-          <h3 className="font-bold text-lg mb-3 text-white">📜 Battle Log</h3>
-          <div className="space-y-3">
-            {battleLog.length === 0 && (
-              <div className="text-gray-400 text-center py-4">Click ATTACK to begin!</div>
-            )}
-            {battleLog.map((log, index) => (
-              <div key={index} className={`text-sm p-3 rounded-lg ${
-                log.critical ? 'bg-red-900/50 border-l-4 border-red-500' : 'bg-gray-800'
-              }`}>
-                {/* Attack Summary */}
-                <div className="text-white">
-                  <span className="font-bold text-yellow-400">{log.attacker}</span>
-                  {' '}used{' '}
-                  <span className="font-bold text-purple-400">{log.move}</span>
-                  {' '}on{' '}
-                  <span className="font-bold text-yellow-400">{log.defender}</span>
-                </div>
-
-                {/* Dice Rolls - Clear breakdown */}
-                <div className="mt-2 text-gray-300 flex gap-4 text-xs">
-                  <span className="text-red-400">
-                    🎲 {log.attackerName} rolled: <strong>{log.attackerRoll}</strong>
-                    {log.attackerRoll === 6 && ' ⚡'}
-                  </span>
-                  <span className="text-blue-400">
-                    🛡️ {log.defenderName} rolled: <strong>{log.defenderRoll}</strong>
-                  </span>
-                </div>
-
-                {/* Damage Result */}
-                <div className="mt-2 flex flex-wrap gap-2 items-center">
-                  <span className={`font-bold text-lg ${log.critical ? 'text-red-400' : 'text-orange-400'}`}>
-                    {log.damage} damage!
-                  </span>
-                  {log.critical && <span className="text-red-400 font-bold text-xs bg-red-900 px-2 py-1 rounded">⚡ CRITICAL HIT!</span>}
-                  {log.typeEffectiveness > 1.0 && <span className="text-green-400 font-bold text-xs bg-green-900 px-2 py-1 rounded">🎯 Super Effective!</span>}
-                  {log.typeEffectiveness < 1.0 && <span className="text-gray-400 text-xs bg-gray-700 px-2 py-1 rounded">Not very effective...</span>}
-                </div>
-
-                {/* Damage Calculation Explanation */}
-                <div className="mt-1 text-xs text-gray-500">
-                  Roll {log.attackerRoll} (+{log.attackerRoll * 5} dmg) vs Roll {log.defenderRoll} (-{log.defenderRoll * 3} blocked)
-                  {log.typeEffectiveness !== 1.0 && ` × ${log.typeEffectiveness}x type`}
-                  {log.critical && ' × 1.5x crit'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Tip at bottom */}
+      <div className="flex-none p-2 text-center">
+        <p className="text-gray-500 text-xs">Higher roll = More damage • Roll 6 = Critical Hit</p>
       </div>
     </div>
   );
