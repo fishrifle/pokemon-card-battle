@@ -13,6 +13,20 @@ interface BattleLog {
   damage: number;
   critical: boolean;
   roll: number;
+  effectiveness?: 'super' | 'weak' | 'normal';
+}
+
+interface FloatingDamage {
+  id: number;
+  damage: number;
+  critical: boolean;
+  x: number;
+  y: number;
+}
+
+interface EffectivenessMessage {
+  text: string;
+  color: string;
 }
 
 // Clickable Dice
@@ -80,7 +94,13 @@ const rarityStyles: Record<string, string> = {
 };
 
 // Playing Card sized Pokemon Card with type colors and rarity effects
-const PlayerCard = ({ card, isActive, isLoser }: { card: PokemonCardType; isActive: boolean; isLoser: boolean }) => {
+const PlayerCard = ({ card, isActive, isLoser, isAttacking, isHit }: {
+  card: PokemonCardType;
+  isActive: boolean;
+  isLoser: boolean;
+  isAttacking?: boolean;
+  isHit?: boolean;
+}) => {
   const hpPct = (card.hp / card.maxHp) * 100;
   const hpColor = hpPct > 60 ? 'bg-green-500' : hpPct > 30 ? 'bg-yellow-500' : 'bg-red-500';
 
@@ -93,7 +113,9 @@ const PlayerCard = ({ card, isActive, isLoser }: { card: PokemonCardType; isActi
   return (
     <div className={`relative w-[140px] h-[196px] md:w-[180px] md:h-[252px] rounded-xl overflow-hidden transition-all duration-300 ${rarityClass} ${colors.glow} ${
       isActive ? 'ring-4 ring-yellow-400 scale-105' : ''
-    } ${isLoser ? 'opacity-40 grayscale' : ''} ${isLegendary ? 'animate-legendary-glow' : ''}`}
+    } ${isLoser ? 'opacity-40 grayscale' : ''} ${isLegendary ? 'animate-legendary-glow' : ''} ${
+      isAttacking ? 'animate-attack-lunge' : ''
+    } ${isHit ? 'animate-hit-flash' : ''}`}
     style={{
       borderColor: colors.border,
       boxShadow: isRare ? `0 0 20px ${colors.border}40, 0 0 40px ${colors.border}20` : undefined
@@ -198,6 +220,17 @@ export default function BattlePage() {
   const logIdRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
+  // Animation states
+  const [screenShake, setScreenShake] = useState(false);
+  const [p1Attacking, setP1Attacking] = useState(false);
+  const [p2Attacking, setP2Attacking] = useState(false);
+  const [p1Hit, setP1Hit] = useState(false);
+  const [p2Hit, setP2Hit] = useState(false);
+  const [floatingDamage, setFloatingDamage] = useState<FloatingDamage | null>(null);
+  const [effectivenessMsg, setEffectivenessMsg] = useState<EffectivenessMessage | null>(null);
+  const [attackName, setAttackName] = useState<string | null>(null);
+  const damageIdRef = useRef(0);
+
   const router = useRouter();
   const { playAttack, playCriticalHit, playVictory, playDefeat } = useSound();
 
@@ -290,15 +323,55 @@ export default function BattlePage() {
 
     const newHP = Math.max(0, defender.hp - dmg);
 
-    logIdRef.current++;
-    setBattleLog(prev => [...prev.slice(-6), { id: logIdRef.current, attacker: attacker.name, damage: dmg, critical: crit, roll: atkRoll }]);
+    // Determine effectiveness
+    const effectiveness = typeMult > 1 ? 'super' : typeMult < 1 ? 'weak' : 'normal';
 
+    logIdRef.current++;
+    setBattleLog(prev => [...prev.slice(-6), { id: logIdRef.current, attacker: attacker.name, damage: dmg, critical: crit, roll: atkRoll, effectiveness }]);
+
+    // Show attack name
+    setAttackName(attacker.specialMove.name);
+    setTimeout(() => setAttackName(null), 1000);
+
+    // Attacker lunge animation
+    if (isP1) setP1Attacking(true);
+    else setP2Attacking(true);
+    setTimeout(() => { setP1Attacking(false); setP2Attacking(false); }, 300);
+
+    // Play sound and particles
     playAttack(attacker.types[0]);
     const typeMap: Record<string, 'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'> = {
       Fire: 'fire', Water: 'water', Electric: 'electric', Grass: 'grass', Psychic: 'psychic'
     };
     setParticleType(typeMap[attacker.types[0]] || 'impact');
     setShowParticles(true);
+
+    // Hit flash and screen shake after a brief delay
+    setTimeout(() => {
+      if (isP1) setP2Hit(true);
+      else setP1Hit(true);
+      setScreenShake(true);
+
+      // Floating damage number
+      damageIdRef.current++;
+      setFloatingDamage({
+        id: damageIdRef.current,
+        damage: dmg,
+        critical: crit,
+        x: isP1 ? 65 : 35,
+        y: 40
+      });
+
+      // Type effectiveness message
+      if (typeMult > 1) {
+        setEffectivenessMsg({ text: "SUPER EFFECTIVE!", color: "text-green-400" });
+      } else if (typeMult < 1) {
+        setEffectivenessMsg({ text: "Not very effective...", color: "text-orange-400" });
+      }
+      setTimeout(() => setEffectivenessMsg(null), 1200);
+      setTimeout(() => setFloatingDamage(null), 1000);
+      setTimeout(() => { setP1Hit(false); setP2Hit(false); setScreenShake(false); }, 200);
+    }, 200);
 
     if (crit) setTimeout(() => playCriticalHit(), 80);
 
@@ -314,7 +387,7 @@ export default function BattlePage() {
         setCurrentTurn(isP1 ? 'player2' : 'player1');
       }
       setIsAnimating(false);
-    }, 500);
+    }, 800);
   };
 
   const updatePokemonStats = () => {
@@ -334,7 +407,7 @@ export default function BattlePage() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden relative select-none">
+    <div className={`h-screen w-screen overflow-hidden relative select-none ${screenShake ? 'animate-screen-shake' : ''}`}>
       {/* Epic Battle Arena Background */}
       <div className="absolute inset-0 z-0">
         {/* Dark dramatic sky */}
@@ -428,21 +501,38 @@ export default function BattlePage() {
                 canClick={currentTurn === 'player1' && battlePhase === 'fighting' && !isAnimating}
                 onClick={handleBattleClick}
               />
-              <PlayerCard card={player1Card} isActive={currentTurn === 'player1' && battlePhase === 'fighting'} isLoser={winner === 'player2'} />
+              <PlayerCard card={player1Card} isActive={currentTurn === 'player1' && battlePhase === 'fighting'} isLoser={winner === 'player2'} isAttacking={p1Attacking} isHit={p1Hit} />
               <span className="text-red-400 font-bold text-sm">P1</span>
             </div>
 
-            {/* VS */}
-            <div className="flex flex-col items-center mb-20">
+            {/* VS + Attack Name + Effectiveness */}
+            <div className="flex flex-col items-center mb-20 relative">
+              {/* Attack Name Banner */}
+              {attackName && (
+                <div className="absolute -top-16 left-1/2 -translate-x-1/2 animate-attack-name">
+                  <div className="bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 px-6 py-2 rounded-lg shadow-2xl border-2 border-yellow-300">
+                    <span className="text-white font-black text-lg md:text-xl drop-shadow-lg">{attackName}!</span>
+                  </div>
+                </div>
+              )}
+
               {battlePhase === 'fighting' && (
                 <div className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 drop-shadow-lg animate-pulse">
                   VS
                 </div>
               )}
+
+              {/* Effectiveness Message */}
+              {effectivenessMsg && (
+                <div className={`absolute top-12 left-1/2 -translate-x-1/2 ${effectivenessMsg.color} font-black text-sm md:text-lg animate-effectiveness whitespace-nowrap`}>
+                  {effectivenessMsg.text}
+                </div>
+              )}
+
               {battlePhase === 'finished' && (
                 <div className="text-center">
                   <div className="text-2xl md:text-4xl font-black text-yellow-400 mb-2">
-                    🏆 {winner === 'player1' ? player1Card.name : player2Card.name}
+                    {winner === 'player1' ? player1Card.name : player2Card.name}
                   </div>
                   <div className="text-lg text-yellow-300">WINS!</div>
                   <button
@@ -464,7 +554,7 @@ export default function BattlePage() {
                 canClick={currentTurn === 'player2' && battlePhase === 'fighting' && !isAnimating}
                 onClick={handleBattleClick}
               />
-              <PlayerCard card={player2Card} isActive={currentTurn === 'player2' && battlePhase === 'fighting'} isLoser={winner === 'player1'} />
+              <PlayerCard card={player2Card} isActive={currentTurn === 'player2' && battlePhase === 'fighting'} isLoser={winner === 'player1'} isAttacking={p2Attacking} isHit={p2Hit} />
               <span className="text-blue-400 font-bold text-sm">P2</span>
             </div>
           </div>
@@ -518,6 +608,21 @@ export default function BattlePage() {
         y={typeof window !== 'undefined' ? window.innerHeight / 2 : 200}
       />
 
+      {/* Floating Damage Number */}
+      {floatingDamage && (
+        <div
+          key={floatingDamage.id}
+          className="absolute pointer-events-none z-50 animate-damage-float"
+          style={{ left: `${floatingDamage.x}%`, top: `${floatingDamage.y}%` }}
+        >
+          <div className={`font-black text-4xl md:text-6xl ${floatingDamage.critical ? 'text-red-500 animate-crit-pulse' : 'text-yellow-400'}`}
+               style={{ textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
+            -{floatingDamage.damage}
+            {floatingDamage.critical && <span className="text-2xl ml-1">CRIT!</span>}
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
@@ -545,6 +650,49 @@ export default function BattlePage() {
           0%, 100% { transform: translateY(0px); opacity: 0.4; }
           50% { transform: translateY(-20px); opacity: 0.8; }
         }
+        @keyframes screen-shake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-8px) translateY(4px); }
+          40% { transform: translateX(8px) translateY(-4px); }
+          60% { transform: translateX(-6px) translateY(2px); }
+          80% { transform: translateX(6px) translateY(-2px); }
+        }
+        .animate-screen-shake { animation: screen-shake 0.2s ease-out; }
+        @keyframes attack-lunge {
+          0% { transform: scale(1) translateX(0); }
+          50% { transform: scale(1.1) translateX(20px); }
+          100% { transform: scale(1) translateX(0); }
+        }
+        .animate-attack-lunge { animation: attack-lunge 0.3s ease-out; }
+        @keyframes hit-flash {
+          0%, 100% { filter: brightness(1); }
+          25%, 75% { filter: brightness(2) saturate(0); }
+          50% { filter: brightness(3) saturate(0); }
+        }
+        .animate-hit-flash { animation: hit-flash 0.2s ease-out; }
+        @keyframes damage-float {
+          0% { transform: translateY(0) scale(0.5); opacity: 0; }
+          20% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+          100% { transform: translateY(-80px) scale(1); opacity: 0; }
+        }
+        .animate-damage-float { animation: damage-float 1s ease-out forwards; }
+        @keyframes crit-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+        }
+        .animate-crit-pulse { animation: crit-pulse 0.15s ease-out 3; }
+        @keyframes attack-name {
+          0% { transform: translateX(-50%) scale(0) rotate(-10deg); opacity: 0; }
+          30% { transform: translateX(-50%) scale(1.2) rotate(5deg); opacity: 1; }
+          100% { transform: translateX(-50%) scale(1) rotate(0deg); opacity: 1; }
+        }
+        .animate-attack-name { animation: attack-name 0.4s ease-out forwards; }
+        @keyframes effectiveness {
+          0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+          30% { transform: translateX(-50%) scale(1.1); opacity: 1; }
+          100% { transform: translateX(-50%) scale(1); opacity: 1; }
+        }
+        .animate-effectiveness { animation: effectiveness 0.3s ease-out forwards; }
       `}</style>
     </div>
   );
