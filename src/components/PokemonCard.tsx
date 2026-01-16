@@ -105,21 +105,29 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
 
             {/* Stats bar */}
             <div className="bg-black/50 rounded-lg p-1.5 backdrop-blur-sm space-y-1">
-              {/* HP */}
-              <div className="flex items-center justify-between text-white text-xs font-bold">
-                <span>HP</span>
-                <span style={{ color: colors.accent }}>{pokemon.hp}</span>
+              {/* Special Move */}
+              <div className="text-center py-0.5 rounded"
+                   style={{ background: `linear-gradient(135deg, ${colors.border}40, ${colors.border}20)` }}>
+                <span className="text-[9px] md:text-[10px] font-bold text-white/70 uppercase">Move:</span>
+                <div className="text-[10px] md:text-xs font-bold truncate px-1"
+                     style={{ color: colors.accent }}>
+                  {pokemon.specialMove.name}
+                </div>
               </div>
 
-              {/* ATK / DEF */}
-              <div className="flex gap-2 text-xs">
-                <div className="flex-1 bg-orange-600/80 rounded px-1.5 py-0.5 text-center">
-                  <span className="text-white font-bold">{pokemon.attack}</span>
-                  <span className="text-orange-200 ml-1">ATK</span>
+              {/* HP + ATK/DEF row */}
+              <div className="flex gap-1 text-[10px]">
+                <div className="flex-1 bg-green-600/80 rounded px-1 py-0.5 text-center">
+                  <span className="text-white font-bold">{pokemon.hp}</span>
+                  <span className="text-green-200 ml-0.5">HP</span>
                 </div>
-                <div className="flex-1 bg-blue-600/80 rounded px-1.5 py-0.5 text-center">
+                <div className="flex-1 bg-orange-600/80 rounded px-1 py-0.5 text-center">
+                  <span className="text-white font-bold">{pokemon.attack}</span>
+                  <span className="text-orange-200 ml-0.5">ATK</span>
+                </div>
+                <div className="flex-1 bg-blue-600/80 rounded px-1 py-0.5 text-center">
                   <span className="text-white font-bold">{pokemon.defense}</span>
-                  <span className="text-blue-200 ml-1">DEF</span>
+                  <span className="text-blue-200 ml-0.5">DEF</span>
                 </div>
               </div>
 
@@ -130,7 +138,7 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
                   return (
                     <span
                       key={type}
-                      className="text-[9px] md:text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase text-white"
+                      className="text-[8px] md:text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase text-white"
                       style={{ background: tColor.border }}
                     >
                       {type}

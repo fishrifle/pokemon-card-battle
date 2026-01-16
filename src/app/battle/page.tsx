@@ -335,46 +335,81 @@ export default function BattlePage() {
 
   return (
     <div className="h-screen w-screen overflow-hidden relative select-none">
-      {/* Animated Battle Background */}
+      {/* Epic Battle Arena Background */}
       <div className="absolute inset-0 z-0">
-        {/* Sky gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-indigo-900 via-purple-900 to-slate-900" />
+        {/* Dark dramatic sky */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-indigo-950 to-purple-950" />
 
-        {/* Animated stars */}
+        {/* Animated energy waves */}
         <div className="absolute inset-0 overflow-hidden">
-          {[...Array(30)].map((_, i) => (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%]">
+            <div className="absolute inset-0 border-2 border-purple-500/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+            <div className="absolute inset-[10%] border-2 border-blue-500/20 rounded-full animate-ping" style={{ animationDuration: '4s', animationDelay: '1s' }} />
+            <div className="absolute inset-[20%] border-2 border-cyan-500/20 rounded-full animate-ping" style={{ animationDuration: '5s', animationDelay: '2s' }} />
+          </div>
+        </div>
+
+        {/* Stadium lights / spotlights */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 left-1/4 w-40 h-[120%] bg-gradient-to-b from-yellow-400/30 via-yellow-400/5 to-transparent transform -skew-x-12 animate-pulse" style={{ animationDuration: '2s' }} />
+          <div className="absolute -top-20 right-1/4 w-40 h-[120%] bg-gradient-to-b from-orange-400/30 via-orange-400/5 to-transparent transform skew-x-12 animate-pulse" style={{ animationDuration: '2.5s' }} />
+          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-32 h-[120%] bg-gradient-to-b from-white/20 via-white/5 to-transparent" />
+        </div>
+
+        {/* Floating particles */}
+        <div className="absolute inset-0 overflow-hidden">
+          {[...Array(20)].map((_, i) => (
             <div
               key={i}
-              className="absolute w-1 h-1 bg-white rounded-full animate-pulse"
+              className="absolute w-1 h-1 bg-cyan-400 rounded-full"
               style={{
-                left: `${Math.random() * 100}%`,
-                top: `${Math.random() * 60}%`,
-                animationDelay: `${Math.random() * 2}s`,
-                opacity: Math.random() * 0.7 + 0.3
+                left: `${10 + Math.random() * 80}%`,
+                top: `${10 + Math.random() * 80}%`,
+                animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
+                animationDelay: `${Math.random() * 3}s`,
+                opacity: 0.4 + Math.random() * 0.4
               }}
             />
           ))}
         </div>
 
-        {/* Battle arena ground */}
-        <div className="absolute bottom-0 left-0 right-0 h-[35%]">
-          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-900 to-transparent" />
-          {/* Grid lines for depth */}
-          <svg className="absolute inset-0 w-full h-full opacity-20">
+        {/* Battle arena floor - perspective grid */}
+        <div className="absolute bottom-0 left-0 right-0 h-[40%]" style={{ perspective: '500px' }}>
+          <div
+            className="absolute inset-0 bg-gradient-to-t from-indigo-900/80 via-purple-900/60 to-transparent"
+            style={{ transform: 'rotateX(60deg)', transformOrigin: 'bottom' }}
+          />
+          {/* Neon grid */}
+          <svg className="absolute inset-0 w-full h-full" style={{ transform: 'rotateX(60deg)', transformOrigin: 'bottom' }}>
             <defs>
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#10b981" strokeWidth="1" />
+              <pattern id="neonGrid" width="60" height="60" patternUnits="userSpaceOnUse">
+                <path d="M 60 0 L 0 0 0 60" fill="none" stroke="url(#gridGradient)" strokeWidth="1" />
               </pattern>
+              <linearGradient id="gridGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.3" />
+              </linearGradient>
             </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
+            <rect width="100%" height="100%" fill="url(#neonGrid)" />
           </svg>
+          {/* Center battle circle */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-48 md:w-64 h-16 md:h-20 border-2 border-cyan-500/50 rounded-full bg-cyan-500/10"
+               style={{ transform: 'translateX(-50%) rotateX(60deg)' }} />
         </div>
 
-        {/* Dramatic light beams */}
-        <div className="absolute inset-0 overflow-hidden opacity-30">
-          <div className="absolute top-0 left-1/4 w-32 h-full bg-gradient-to-b from-yellow-400/20 to-transparent transform -skew-x-12" />
-          <div className="absolute top-0 right-1/4 w-32 h-full bg-gradient-to-b from-purple-400/20 to-transparent transform skew-x-12" />
-        </div>
+        {/* Side energy bars */}
+        <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b from-red-500/50 via-red-600/30 to-red-500/50 animate-pulse" />
+        <div className="absolute right-0 top-0 bottom-0 w-2 bg-gradient-to-b from-blue-500/50 via-blue-600/30 to-blue-500/50 animate-pulse" />
+
+        {/* Corner accents */}
+        <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-red-500/20 to-transparent" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-500/20 to-transparent" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-purple-500/20 to-transparent" />
+        <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-cyan-500/20 to-transparent" />
+
+        {/* Vignette */}
+        <div className="absolute inset-0 bg-radial-gradient pointer-events-none"
+             style={{ background: 'radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.6) 100%)' }} />
       </div>
 
       {/* Main Content */}
@@ -506,6 +541,10 @@ export default function BattlePage() {
           50% { filter: drop-shadow(0 0 16px currentColor); }
         }
         .animate-legendary-glow { animation: legendary-glow 2s ease-in-out infinite; }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); opacity: 0.4; }
+          50% { transform: translateY(-20px); opacity: 0.8; }
+        }
       `}</style>
     </div>
   );

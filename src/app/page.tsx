@@ -64,11 +64,55 @@ export default function Home() {
   const rarities = ['all', 'common', 'uncommon', 'rare', 'legendary'];
 
   return (
-    <div className="min-h-screen bg-gray-800 p-4">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 text-white drop-shadow-lg">
-          Pokemon Card Battle Arena
-        </h1>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Epic Background */}
+      <div className="fixed inset-0 z-0">
+        {/* Base gradient */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-purple-950 to-indigo-950" />
+
+        {/* Animated orbs */}
+        <div className="absolute top-20 left-20 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-80 h-80 bg-blue-600/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-3xl" />
+
+        {/* Grid overlay */}
+        <div className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: `linear-gradient(rgba(139, 92, 246, 0.3) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(139, 92, 246, 0.3) 1px, transparent 1px)`,
+            backgroundSize: '60px 60px'
+          }}
+        />
+
+        {/* Floating particles */}
+        <div className="absolute inset-0 overflow-hidden">
+          {[...Array(15)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 bg-cyan-400/60 rounded-full"
+              style={{
+                left: `${5 + i * 6.5}%`,
+                top: `${10 + (i % 5) * 20}%`,
+                animation: `floatParticle ${4 + (i % 3)}s ease-in-out infinite`,
+                animationDelay: `${i * 0.3}s`
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Corner glows */}
+        <div className="absolute top-0 left-0 w-64 h-64 bg-gradient-to-br from-red-500/20 to-transparent" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-blue-500/20 to-transparent" />
+
+        {/* Vignette */}
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at center, transparent 40%, rgba(0,0,0,0.5) 100%)' }} />
+      </div>
+
+      <div className="relative z-10 p-4">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-3xl md:text-4xl font-black text-center mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-red-500 to-purple-500 drop-shadow-lg">
+            Pokemon Card Battle Arena
+          </h1>
         
         <div className="mb-6 space-y-4">
           <div className="flex flex-wrap gap-4 justify-center">
@@ -127,6 +171,7 @@ export default function Home() {
             <p className="text-xl">No Pokemon found matching your criteria.</p>
           </div>
         ) : null}
+        </div>
       </div>
 
       {/* Floating Battle Button */}
@@ -160,27 +205,27 @@ export default function Home() {
             <h2 className="text-2xl font-bold text-center mb-4 text-gray-800">
               🎮 Pokemon Battle Guide
             </h2>
-            
+
             <div className="space-y-3 text-gray-700 text-sm">
               <div className="border-l-4 border-blue-500 pl-3">
                 <h3 className="font-bold">🃏 Card Selection</h3>
                 <p>• Click cards to select (choose 2)</p>
                 <p>• <strong>Double-click to flip and see wins/losses!</strong></p>
               </div>
-              
+
               <div className="border-l-4 border-red-500 pl-3">
                 <h3 className="font-bold">⚔️ Battle</h3>
                 <p>• Click floating "BATTLE!" button</p>
                 <p>• Take turns attacking with dice + stats</p>
               </div>
-              
+
               <div className="border-l-4 border-green-500 pl-3">
                 <h3 className="font-bold">🏆 Progress</h3>
                 <p>• Battle results auto-save</p>
                 <p>• Build your ultimate team!</p>
               </div>
             </div>
-            
+
             <div className="mt-6 text-center">
               <button
                 onClick={closeTutorial}
@@ -192,6 +237,13 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes floatParticle {
+          0%, 100% { transform: translateY(0px) scale(1); opacity: 0.6; }
+          50% { transform: translateY(-30px) scale(1.2); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
