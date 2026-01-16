@@ -78,8 +78,8 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
   const getSpecialMoveStyle = (moveName: string, primaryType: string) => {
     // Fall back to Pokemon type with readable colors and subtle effects
     const typeStyles: Record<string, any> = {
-      Fire: { color: '#ffa500', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
-      Water: { color: '#4682b4', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Fire: { color: '#f7ab20ff', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Water: { color: '#6664e4ff', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
       Grass: { color: '#9acd32', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
       Electric: { color: '#ffd700', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
       Psychic: { color: '#da70d6', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
@@ -92,10 +92,10 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
       Rock: { color: '#a0522d', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
       Ghost: { color: '#9370db', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
       Dragon: { color: '#ff6347', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
-      Dark: { color: '#a9a9a9', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
-      Steel: { color: '#b0c4de', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Dark: { color: '#9c0dd4ff', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
+      Steel: { color: '#b6babeff', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
       Fairy: { color: '#ff69b4', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' },
-      Normal: { color: '#d3d3d3', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }
+      Normal: { color: '#8a543bff', textShadow: '1px 1px 2px rgba(0,0,0,0.8)' }
     };
     
     return typeStyles[primaryType] || typeStyles.Normal;
