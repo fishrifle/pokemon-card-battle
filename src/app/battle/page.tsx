@@ -49,53 +49,131 @@ const Dice = ({ value, color, rolling, canClick, onClick }: {
   );
 };
 
-// Playing Card sized Pokemon Card
+// Type color mappings
+const typeColors: Record<string, { bg: string; border: string; glow: string }> = {
+  Fire: { bg: 'from-orange-600 via-red-600 to-orange-700', border: '#f97316', glow: 'shadow-orange-500/50' },
+  Water: { bg: 'from-blue-500 via-blue-600 to-cyan-600', border: '#3b82f6', glow: 'shadow-blue-500/50' },
+  Grass: { bg: 'from-green-500 via-emerald-600 to-green-700', border: '#22c55e', glow: 'shadow-green-500/50' },
+  Electric: { bg: 'from-yellow-400 via-yellow-500 to-amber-500', border: '#eab308', glow: 'shadow-yellow-400/50' },
+  Psychic: { bg: 'from-pink-500 via-purple-500 to-fuchsia-600', border: '#d946ef', glow: 'shadow-purple-500/50' },
+  Fighting: { bg: 'from-orange-700 via-red-700 to-amber-800', border: '#c2410c', glow: 'shadow-orange-600/50' },
+  Rock: { bg: 'from-stone-500 via-amber-700 to-stone-600', border: '#a8a29e', glow: 'shadow-stone-500/50' },
+  Ground: { bg: 'from-amber-600 via-yellow-700 to-orange-800', border: '#d97706', glow: 'shadow-amber-500/50' },
+  Flying: { bg: 'from-sky-400 via-indigo-400 to-blue-500', border: '#7dd3fc', glow: 'shadow-sky-400/50' },
+  Bug: { bg: 'from-lime-500 via-green-600 to-lime-700', border: '#84cc16', glow: 'shadow-lime-500/50' },
+  Poison: { bg: 'from-purple-600 via-violet-700 to-purple-800', border: '#9333ea', glow: 'shadow-purple-600/50' },
+  Ghost: { bg: 'from-purple-800 via-indigo-900 to-slate-900', border: '#6b21a8', glow: 'shadow-purple-800/50' },
+  Dragon: { bg: 'from-indigo-600 via-purple-700 to-blue-800', border: '#4f46e5', glow: 'shadow-indigo-500/50' },
+  Ice: { bg: 'from-cyan-300 via-sky-400 to-blue-400', border: '#67e8f9', glow: 'shadow-cyan-400/50' },
+  Steel: { bg: 'from-slate-400 via-gray-500 to-zinc-500', border: '#94a3b8', glow: 'shadow-slate-400/50' },
+  Dark: { bg: 'from-gray-800 via-slate-900 to-black', border: '#374151', glow: 'shadow-gray-700/50' },
+  Fairy: { bg: 'from-pink-400 via-rose-400 to-pink-500', border: '#f472b6', glow: 'shadow-pink-400/50' },
+  Normal: { bg: 'from-gray-400 via-stone-500 to-gray-500', border: '#9ca3af', glow: 'shadow-gray-400/50' },
+};
+
+// Rarity border effects
+const rarityStyles: Record<string, string> = {
+  common: 'border-2',
+  uncommon: 'border-2 shadow-lg',
+  rare: 'border-3 shadow-xl',
+  legendary: 'border-4 shadow-2xl',
+};
+
+// Playing Card sized Pokemon Card with type colors and rarity effects
 const PlayerCard = ({ card, isActive, isLoser }: { card: PokemonCardType; isActive: boolean; isLoser: boolean }) => {
   const hpPct = (card.hp / card.maxHp) * 100;
   const hpColor = hpPct > 60 ? 'bg-green-500' : hpPct > 30 ? 'bg-yellow-500' : 'bg-red-500';
 
-  return (
-    <div className={`relative w-[140px] h-[196px] md:w-[180px] md:h-[252px] rounded-xl overflow-hidden shadow-2xl transition-all duration-300 ${
-      isActive ? 'ring-4 ring-yellow-400 scale-105' : ''
-    } ${isLoser ? 'opacity-40 grayscale' : ''}`}
-    style={{
-      background: 'linear-gradient(145deg, #2a2a4a 0%, #1a1a2e 100%)',
-      border: '3px solid #4a4a6a'
-    }}>
-      {/* Card inner border */}
-      <div className="absolute inset-1 rounded-lg border border-yellow-600/30" />
+  const primaryType = card.types[0] || 'Normal';
+  const colors = typeColors[primaryType] || typeColors.Normal;
+  const rarityClass = rarityStyles[card.rarity] || rarityStyles.common;
+  const isLegendary = card.rarity === 'legendary';
+  const isRare = card.rarity === 'rare' || isLegendary;
 
-      {/* Pokemon image area */}
-      <div className="relative h-[55%] flex items-center justify-center overflow-hidden"
-        style={{ background: 'radial-gradient(ellipse at center, #3a3a5a 0%, #1a1a2e 100%)' }}>
+  return (
+    <div className={`relative w-[140px] h-[196px] md:w-[180px] md:h-[252px] rounded-xl overflow-hidden transition-all duration-300 ${rarityClass} ${colors.glow} ${
+      isActive ? 'ring-4 ring-yellow-400 scale-105' : ''
+    } ${isLoser ? 'opacity-40 grayscale' : ''} ${isLegendary ? 'animate-legendary-glow' : ''}`}
+    style={{
+      borderColor: colors.border,
+      boxShadow: isRare ? `0 0 20px ${colors.border}40, 0 0 40px ${colors.border}20` : undefined
+    }}>
+      {/* Card background gradient based on type */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg}`} />
+
+      {/* Holographic overlay for rare/legendary */}
+      {isRare && (
+        <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-white/10 animate-shimmer" />
+      )}
+      {isLegendary && (
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12 animate-holo-sweep" />
+        </div>
+      )}
+
+      {/* Inner border glow */}
+      <div className="absolute inset-1 rounded-lg border border-white/20" />
+
+      {/* Pokemon image area - NOW 75% of card */}
+      <div className="relative h-[75%] flex items-end justify-center overflow-hidden pb-2">
+        {/* Radial glow behind Pokemon */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full bg-white/20 blur-xl`} />
+        </div>
+
+        {/* Pokemon name at top */}
+        <div className="absolute top-1 left-0 right-0 z-10">
+          <h3 className="font-bold text-sm md:text-base text-white text-center truncate drop-shadow-lg px-2"
+              style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+            {card.name}
+          </h3>
+        </div>
+
+        {/* Bigger Pokemon image */}
         <Image
           src={card.image}
           alt={card.name}
-          width={100}
-          height={100}
-          className="pixelated drop-shadow-lg md:w-[130px] md:h-[130px]"
+          width={120}
+          height={120}
+          className="pixelated drop-shadow-2xl md:w-[150px] md:h-[150px] relative z-10"
+          style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))' }}
         />
+
+        {/* HP Bar overlaid at bottom of image area */}
+        <div className="absolute bottom-0 left-2 right-2 z-20">
+          <div className="relative h-5 bg-black/60 rounded-full overflow-hidden border-2 border-white/30 backdrop-blur-sm">
+            <div className={`h-full ${hpColor} transition-all duration-500`} style={{ width: `${hpPct}%` }} />
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-lg">
+              {card.hp} / {card.maxHp} HP
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Card info */}
-      <div className="p-2 space-y-1">
-        <h3 className="font-bold text-sm md:text-base text-white text-center truncate">{card.name}</h3>
-
-        {/* HP Bar */}
-        <div className="relative h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-600">
-          <div className={`h-full ${hpColor} transition-all duration-500`} style={{ width: `${hpPct}%` }} />
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow">
-            {card.hp} / {card.maxHp}
-          </span>
-        </div>
-
+      {/* Card footer with types and rarity */}
+      <div className="relative h-[25%] bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center gap-1 px-2">
         {/* Types */}
         <div className="flex justify-center gap-1">
-          {card.types.slice(0, 2).map(type => (
-            <span key={type} className="text-[8px] md:text-[10px] px-1.5 py-0.5 rounded bg-gray-700 text-gray-300 uppercase">
-              {type}
-            </span>
-          ))}
+          {card.types.slice(0, 2).map(type => {
+            const typeColor = typeColors[type] || typeColors.Normal;
+            return (
+              <span key={type}
+                className="text-[9px] md:text-[11px] px-2 py-0.5 rounded-full font-bold uppercase text-white"
+                style={{
+                  background: `linear-gradient(135deg, ${typeColor.border}, ${typeColor.border}99)`,
+                  boxShadow: `0 2px 4px ${typeColor.border}40`
+                }}>
+                {type}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Rarity indicator */}
+        <div className="flex items-center gap-0.5">
+          {card.rarity === 'legendary' && <span className="text-yellow-400 text-xs">&#9733;&#9733;&#9733;</span>}
+          {card.rarity === 'rare' && <span className="text-yellow-400 text-xs">&#9733;&#9733;</span>}
+          {card.rarity === 'uncommon' && <span className="text-gray-300 text-xs">&#9733;</span>}
         </div>
       </div>
     </div>
@@ -413,6 +491,21 @@ export default function BattlePage() {
           to { transform: translateX(0); opacity: 1; }
         }
         .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        @keyframes shimmer {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.6; }
+        }
+        .animate-shimmer { animation: shimmer 2s ease-in-out infinite; }
+        @keyframes holo-sweep {
+          0% { transform: translateX(-200%) skewX(-12deg); }
+          100% { transform: translateX(200%) skewX(-12deg); }
+        }
+        .animate-holo-sweep { animation: holo-sweep 3s ease-in-out infinite; }
+        @keyframes legendary-glow {
+          0%, 100% { filter: drop-shadow(0 0 8px currentColor); }
+          50% { filter: drop-shadow(0 0 16px currentColor); }
+        }
+        .animate-legendary-glow { animation: legendary-glow 2s ease-in-out infinite; }
       `}</style>
     </div>
   );
