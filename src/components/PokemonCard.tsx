@@ -14,24 +14,24 @@ interface PokemonCardProps {
 
 // Type color mappings - vibrant gradients
 const typeColors: Record<string, { bg: string; border: string; accent: string }> = {
-  Fire: { bg: 'from-orange-500 via-red-600 to-orange-700', border: '#f97316', accent: '#fbbf24' },
-  Water: { bg: 'from-blue-400 via-blue-600 to-cyan-600', border: '#3b82f6', accent: '#67e8f9' },
-  Grass: { bg: 'from-green-400 via-emerald-600 to-green-700', border: '#22c55e', accent: '#86efac' },
-  Electric: { bg: 'from-yellow-300 via-yellow-500 to-amber-500', border: '#eab308', accent: '#fef08a' },
-  Psychic: { bg: 'from-pink-400 via-purple-500 to-fuchsia-600', border: '#d946ef', accent: '#f0abfc' },
-  Fighting: { bg: 'from-orange-600 via-red-700 to-amber-800', border: '#c2410c', accent: '#fdba74' },
-  Rock: { bg: 'from-stone-400 via-amber-700 to-stone-600', border: '#a8a29e', accent: '#d6d3d1' },
-  Ground: { bg: 'from-amber-500 via-yellow-700 to-orange-800', border: '#d97706', accent: '#fcd34d' },
-  Flying: { bg: 'from-sky-300 via-indigo-400 to-blue-500', border: '#7dd3fc', accent: '#c7d2fe' },
-  Bug: { bg: 'from-lime-400 via-green-600 to-lime-700', border: '#84cc16', accent: '#bef264' },
-  Poison: { bg: 'from-purple-500 via-violet-700 to-purple-800', border: '#9333ea', accent: '#c4b5fd' },
-  Ghost: { bg: 'from-purple-700 via-indigo-900 to-slate-900', border: '#6b21a8', accent: '#a78bfa' },
-  Dragon: { bg: 'from-indigo-500 via-purple-700 to-blue-800', border: '#4f46e5', accent: '#a5b4fc' },
-  Ice: { bg: 'from-cyan-200 via-sky-400 to-blue-400', border: '#67e8f9', accent: '#e0f2fe' },
-  Steel: { bg: 'from-slate-300 via-gray-500 to-zinc-500', border: '#94a3b8', accent: '#e2e8f0' },
-  Dark: { bg: 'from-gray-700 via-slate-900 to-black', border: '#374151', accent: '#6b7280' },
-  Fairy: { bg: 'from-pink-300 via-rose-400 to-pink-500', border: '#f472b6', accent: '#fbcfe8' },
-  Normal: { bg: 'from-gray-300 via-stone-500 to-gray-500', border: '#9ca3af', accent: '#d1d5db' },
+  Fire:     { bg: 'from-orange-500 via-red-600 to-orange-700',     border: '#F97316', accent: '#FCD34D' },
+  Water:    { bg: 'from-blue-400 via-blue-600 to-cyan-600',         border: '#3B82F6', accent: '#67E8F9' },
+  Grass:    { bg: 'from-green-400 via-emerald-600 to-green-700',    border: '#22C55E', accent: '#86EFAC' },
+  Electric: { bg: 'from-yellow-300 via-yellow-500 to-amber-400',    border: '#EAB308', accent: '#FEF08A' },
+  Psychic:  { bg: 'from-pink-500 via-fuchsia-600 to-pink-700',      border: '#EC4899', accent: '#F9A8D4' },
+  Fighting: { bg: 'from-rose-700 via-red-800 to-red-900',           border: '#BE123C', accent: '#FDA4AF' },
+  Rock:     { bg: 'from-stone-500 via-amber-700 to-stone-600',      border: '#A8A29E', accent: '#D6D3D1' },
+  Ground:   { bg: 'from-amber-500 via-yellow-700 to-orange-800',    border: '#D97706', accent: '#FCD34D' },
+  Flying:   { bg: 'from-sky-300 via-indigo-400 to-blue-500',        border: '#7DD3FC', accent: '#C7D2FE' },
+  Bug:      { bg: 'from-lime-400 via-green-600 to-lime-700',        border: '#84CC16', accent: '#BEF264' },
+  Poison:   { bg: 'from-purple-500 via-violet-700 to-purple-800',   border: '#9333EA', accent: '#C4B5FD' },
+  Ghost:    { bg: 'from-indigo-800 via-purple-900 to-slate-900',    border: '#8B5CF6', accent: '#A78BFA' },
+  Dragon:   { bg: 'from-indigo-500 via-purple-700 to-blue-800',     border: '#6366F1', accent: '#A5B4FC' },
+  Ice:      { bg: 'from-cyan-200 via-sky-400 to-cyan-500',          border: '#06B6D4', accent: '#E0F2FE' },
+  Steel:    { bg: 'from-slate-300 via-gray-500 to-zinc-500',        border: '#94A3B8', accent: '#E2E8F0' },
+  Dark:     { bg: 'from-gray-800 via-indigo-950 to-gray-900',       border: '#8B5CF6', accent: '#818CF8' },
+  Fairy:    { bg: 'from-pink-300 via-rose-400 to-pink-500',         border: '#F472B6', accent: '#FBCFE8' },
+  Normal:   { bg: 'from-gray-300 via-stone-400 to-gray-500',        border: '#9CA3AF', accent: '#D1D5DB' },
 };
 
 export default function PokemonCard({ pokemon, isSelected = false, onSelect, isFlipped = false }: PokemonCardProps) {
@@ -58,12 +58,15 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
       }}
     >
       <div
-        className={`w-full h-full rounded-xl overflow-hidden shadow-xl transition-transform duration-500 ${flipped ? 'rotateY-180' : ''} ${
-          isLegendary ? 'border-4' : isRare ? 'border-3' : 'border-2'
+        className={`w-full h-full rounded-xl overflow-hidden shadow-xl ${
+          isLegendary ? 'border-4' : isRare ? 'border-[3px]' : 'border-2'
         }`}
         style={{
           borderColor: colors.border,
-          boxShadow: isRare ? `0 0 20px ${colors.border}50, 0 8px 32px rgba(0,0,0,0.3)` : '0 8px 32px rgba(0,0,0,0.3)'
+          boxShadow: isRare ? `0 0 20px ${colors.border}50, 0 8px 32px rgba(0,0,0,0.3)` : '0 8px 32px rgba(0,0,0,0.3)',
+          transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+          transition: 'transform 0.5s ease',
+          transformStyle: 'preserve-3d',
         }}
       >
         {/* Background gradient */}
@@ -77,7 +80,7 @@ export default function PokemonCard({ pokemon, isSelected = false, onSelect, isF
           <div className="absolute inset-0 overflow-hidden">
             <div
               className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12"
-              style={{ animation: 'holoSweep 3s ease-in-out infinite' }}
+              style={{ animation: 'holoSweep 8s ease-in-out infinite 2s' }}
             />
           </div>
         )}

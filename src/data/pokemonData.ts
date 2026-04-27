@@ -56,7 +56,7 @@ function generatePokemonCards(): PokemonCard[] {
       attack: pokemon.attack,
       defense: pokemon.defense,
       specialMove: pokemon.signatureMove,
-      image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.id <= 151 ? pokemon.id : pokemon.id + 100}.png`,
+      image: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.id}.png`,
       wins: stats.wins,
       losses: stats.losses,
       rarity
@@ -75,6 +75,5 @@ function getRarityByStats(hp: number, attack: number, defense: number): 'common'
   return 'common';
 }
 
-// Export function instead of static data to allow dynamic updates
+// Export function only — never call generatePokemonCards() at module load (SSR has no localStorage)
 export const getPokemonCards = () => generatePokemonCards();
-export const pokemonCards = generatePokemonCards();

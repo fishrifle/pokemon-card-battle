@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { PokemonCard as PokemonCardType } from '@/types/pokemon';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
@@ -65,31 +65,31 @@ const Dice = ({ value, color, rolling, canClick, onClick }: {
 
 // Type color mappings
 const typeColors: Record<string, { bg: string; border: string; glow: string }> = {
-  Fire: { bg: 'from-orange-600 via-red-600 to-orange-700', border: '#f97316', glow: 'shadow-orange-500/50' },
-  Water: { bg: 'from-blue-500 via-blue-600 to-cyan-600', border: '#3b82f6', glow: 'shadow-blue-500/50' },
-  Grass: { bg: 'from-green-500 via-emerald-600 to-green-700', border: '#22c55e', glow: 'shadow-green-500/50' },
-  Electric: { bg: 'from-yellow-400 via-yellow-500 to-amber-500', border: '#eab308', glow: 'shadow-yellow-400/50' },
-  Psychic: { bg: 'from-pink-500 via-purple-500 to-fuchsia-600', border: '#d946ef', glow: 'shadow-purple-500/50' },
-  Fighting: { bg: 'from-orange-700 via-red-700 to-amber-800', border: '#c2410c', glow: 'shadow-orange-600/50' },
-  Rock: { bg: 'from-stone-500 via-amber-700 to-stone-600', border: '#a8a29e', glow: 'shadow-stone-500/50' },
-  Ground: { bg: 'from-amber-600 via-yellow-700 to-orange-800', border: '#d97706', glow: 'shadow-amber-500/50' },
-  Flying: { bg: 'from-sky-400 via-indigo-400 to-blue-500', border: '#7dd3fc', glow: 'shadow-sky-400/50' },
-  Bug: { bg: 'from-lime-500 via-green-600 to-lime-700', border: '#84cc16', glow: 'shadow-lime-500/50' },
-  Poison: { bg: 'from-purple-600 via-violet-700 to-purple-800', border: '#9333ea', glow: 'shadow-purple-600/50' },
-  Ghost: { bg: 'from-purple-800 via-indigo-900 to-slate-900', border: '#6b21a8', glow: 'shadow-purple-800/50' },
-  Dragon: { bg: 'from-indigo-600 via-purple-700 to-blue-800', border: '#4f46e5', glow: 'shadow-indigo-500/50' },
-  Ice: { bg: 'from-cyan-300 via-sky-400 to-blue-400', border: '#67e8f9', glow: 'shadow-cyan-400/50' },
-  Steel: { bg: 'from-slate-400 via-gray-500 to-zinc-500', border: '#94a3b8', glow: 'shadow-slate-400/50' },
-  Dark: { bg: 'from-gray-800 via-slate-900 to-black', border: '#374151', glow: 'shadow-gray-700/50' },
-  Fairy: { bg: 'from-pink-400 via-rose-400 to-pink-500', border: '#f472b6', glow: 'shadow-pink-400/50' },
-  Normal: { bg: 'from-gray-400 via-stone-500 to-gray-500', border: '#9ca3af', glow: 'shadow-gray-400/50' },
+  Fire:     { bg: 'from-orange-500 via-red-600 to-orange-700',     border: '#F97316', glow: 'shadow-orange-500/60' },
+  Water:    { bg: 'from-blue-400 via-blue-600 to-cyan-600',         border: '#3B82F6', glow: 'shadow-blue-500/60' },
+  Grass:    { bg: 'from-green-400 via-emerald-600 to-green-700',    border: '#22C55E', glow: 'shadow-green-500/60' },
+  Electric: { bg: 'from-yellow-300 via-yellow-500 to-amber-400',    border: '#EAB308', glow: 'shadow-yellow-400/70' },
+  Psychic:  { bg: 'from-pink-500 via-fuchsia-600 to-pink-700',      border: '#EC4899', glow: 'shadow-pink-500/60' },
+  Fighting: { bg: 'from-rose-700 via-red-800 to-red-900',           border: '#BE123C', glow: 'shadow-rose-700/60' },
+  Rock:     { bg: 'from-stone-500 via-amber-700 to-stone-600',      border: '#A8A29E', glow: 'shadow-stone-500/50' },
+  Ground:   { bg: 'from-amber-500 via-yellow-700 to-orange-800',    border: '#D97706', glow: 'shadow-amber-500/60' },
+  Flying:   { bg: 'from-sky-300 via-indigo-400 to-blue-500',        border: '#7DD3FC', glow: 'shadow-sky-400/60' },
+  Bug:      { bg: 'from-lime-400 via-green-600 to-lime-700',        border: '#84CC16', glow: 'shadow-lime-500/60' },
+  Poison:   { bg: 'from-purple-500 via-violet-700 to-purple-800',   border: '#9333EA', glow: 'shadow-purple-600/60' },
+  Ghost:    { bg: 'from-indigo-800 via-purple-900 to-slate-900',    border: '#8B5CF6', glow: 'shadow-violet-600/60' },
+  Dragon:   { bg: 'from-indigo-500 via-purple-700 to-blue-800',     border: '#6366F1', glow: 'shadow-indigo-500/60' },
+  Ice:      { bg: 'from-cyan-200 via-sky-400 to-cyan-500',          border: '#06B6D4', glow: 'shadow-cyan-500/60' },
+  Steel:    { bg: 'from-slate-300 via-gray-500 to-zinc-500',        border: '#94A3B8', glow: 'shadow-slate-400/60' },
+  Dark:     { bg: 'from-gray-800 via-indigo-950 to-gray-900',       border: '#8B5CF6', glow: 'shadow-violet-900/70' },
+  Fairy:    { bg: 'from-pink-300 via-rose-400 to-pink-500',         border: '#F472B6', glow: 'shadow-pink-400/60' },
+  Normal:   { bg: 'from-gray-300 via-stone-400 to-gray-500',        border: '#9CA3AF', glow: 'shadow-gray-400/50' },
 };
 
 // Rarity border effects
 const rarityStyles: Record<string, string> = {
   common: 'border-2',
   uncommon: 'border-2 shadow-lg',
-  rare: 'border-3 shadow-xl',
+  rare: 'border-[3px] shadow-xl',
   legendary: 'border-4 shadow-2xl',
 };
 
@@ -231,6 +231,17 @@ export default function BattlePage() {
   const [attackName, setAttackName] = useState<string | null>(null);
   const damageIdRef = useRef(0);
 
+  // Stable particle positions — computed once to avoid hydration mismatch and render-flicker
+  const bgParticles = useMemo(() =>
+    [...Array(20)].map(() => ({
+      left: `${10 + Math.random() * 80}%`,
+      top: `${10 + Math.random() * 80}%`,
+      dur: `${3 + Math.random() * 4}s`,
+      del: `${Math.random() * 3}s`,
+      op: 0.4 + Math.random() * 0.4,
+    })), []
+  );
+
   const router = useRouter();
   const { playAttack, playCriticalHit, playVictory, playDefeat } = useSound();
 
@@ -263,7 +274,7 @@ export default function BattlePage() {
   const rollDice = () => Math.floor(Math.random() * 6) + 1;
 
   const getTypeEffectiveness = (attackerTypes: string[], defenderTypes: string[]) => {
-    const eff: Record<string, string[]> = {
+    const superEff: Record<string, string[]> = {
       Fire: ['Grass', 'Bug', 'Steel', 'Ice'], Water: ['Fire', 'Ground', 'Rock'],
       Grass: ['Water', 'Ground', 'Rock'], Electric: ['Water', 'Flying'],
       Psychic: ['Fighting', 'Poison'], Fighting: ['Normal', 'Rock', 'Steel', 'Ice', 'Dark'],
@@ -272,10 +283,15 @@ export default function BattlePage() {
       Dragon: ['Dragon'], Dark: ['Psychic', 'Ghost'], Steel: ['Ice', 'Rock', 'Fairy'],
       Fairy: ['Fighting', 'Dragon', 'Dark']
     };
+    const immune: Record<string, string[]> = {
+      Normal: ['Ghost'], Electric: ['Ground'], Fighting: ['Ghost'],
+      Ground: ['Flying'], Ghost: ['Normal', 'Fighting'], Steel: ['Poison'],
+    };
     for (const at of attackerTypes) {
       for (const dt of defenderTypes) {
-        if (eff[at]?.includes(dt)) return 1.25;
-        if (eff[dt]?.includes(at)) return 0.8;
+        if (immune[at]?.includes(dt)) return 0;      // immunity — no damage
+        if (superEff[at]?.includes(dt)) return 1.5;  // super effective
+        if (superEff[dt]?.includes(at)) return 0.75; // not very effective
       }
     }
     return 1.0;
@@ -312,19 +328,28 @@ export default function BattlePage() {
 
     if (!attacker || !defender) return;
 
-    const base = Math.floor(attacker.specialMove.damage * 0.2);
-    const bonus = atkRoll * 5 - defRoll * 3;
-    const crit = atkRoll === 6;
     const typeMult = getTypeEffectiveness(attacker.types, defender.types);
+    const crit = atkRoll === 6;
 
-    let dmg = Math.floor((base + bonus) * typeMult);
-    if (crit) dmg = Math.floor(dmg * 1.5);
-    dmg = Math.max(Math.floor(defender.maxHp * 0.15), Math.min(Math.floor(defender.maxHp * 0.5), Math.max(1, dmg)));
+    // Defense reduces damage: high defense tanks hits, min 40% of base still lands
+    const defMod = Math.max(0.4, 1 - (defender.defense / 220));
+    const base = Math.floor(attacker.specialMove.damage * 0.2 * defMod);
+    const bonus = atkRoll * 5 - defRoll * 3;
+
+    let dmg: number;
+    if (typeMult === 0) {
+      // Immunity — no damage at all
+      dmg = 0;
+    } else {
+      dmg = Math.floor((base + bonus) * typeMult);
+      if (crit) dmg = Math.floor(dmg * 1.5);
+      dmg = Math.max(Math.floor(defender.maxHp * 0.15), Math.min(Math.floor(defender.maxHp * 0.5), Math.max(1, dmg)));
+    }
 
     const newHP = Math.max(0, defender.hp - dmg);
 
     // Determine effectiveness
-    const effectiveness = typeMult > 1 ? 'super' : typeMult < 1 ? 'weak' : 'normal';
+    const effectiveness = typeMult > 1 ? 'super' : typeMult === 0 ? 'weak' : typeMult < 1 ? 'weak' : 'normal';
 
     logIdRef.current++;
     setBattleLog(prev => [...prev.slice(-6), { id: logIdRef.current, attacker: attacker.name, damage: dmg, critical: crit, roll: atkRoll, effectiveness }]);
@@ -363,7 +388,9 @@ export default function BattlePage() {
       });
 
       // Type effectiveness message
-      if (typeMult > 1) {
+      if (typeMult === 0) {
+        setEffectivenessMsg({ text: "No effect!", color: "text-gray-400" });
+      } else if (typeMult > 1) {
         setEffectivenessMsg({ text: "SUPER EFFECTIVE!", color: "text-green-400" });
       } else if (typeMult < 1) {
         setEffectivenessMsg({ text: "Not very effective...", color: "text-orange-400" });
@@ -431,16 +458,16 @@ export default function BattlePage() {
 
         {/* Floating particles */}
         <div className="absolute inset-0 overflow-hidden">
-          {[...Array(20)].map((_, i) => (
+          {bgParticles.map((p, i) => (
             <div
               key={i}
               className="absolute w-1 h-1 bg-cyan-400 rounded-full"
               style={{
-                left: `${10 + Math.random() * 80}%`,
-                top: `${10 + Math.random() * 80}%`,
-                animation: `float ${3 + Math.random() * 4}s ease-in-out infinite`,
-                animationDelay: `${Math.random() * 3}s`,
-                opacity: 0.4 + Math.random() * 0.4
+                left: p.left,
+                top: p.top,
+                opacity: p.op,
+                animation: `float ${p.dur} ease-in-out infinite`,
+                animationDelay: p.del,
               }}
             />
           ))}
@@ -618,7 +645,8 @@ export default function BattlePage() {
           <div className={`font-black text-4xl md:text-6xl ${floatingDamage.critical ? 'text-red-500 animate-crit-pulse' : 'text-yellow-400'}`}
                style={{ textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
             -{floatingDamage.damage}
-            {floatingDamage.critical && <span className="text-2xl ml-1">CRIT!</span>}
+            {floatingDamage.damage === 0 && <span className="text-2xl ml-1">IMMUNE!</span>}
+            {floatingDamage.critical && floatingDamage.damage > 0 && <span className="text-2xl ml-1">CRIT!</span>}
           </div>
         </div>
       )}
@@ -640,7 +668,7 @@ export default function BattlePage() {
           0% { transform: translateX(-200%) skewX(-12deg); }
           100% { transform: translateX(200%) skewX(-12deg); }
         }
-        .animate-holo-sweep { animation: holo-sweep 3s ease-in-out infinite; }
+        .animate-holo-sweep { animation: holo-sweep 8s ease-in-out infinite 2s; }
         @keyframes legendary-glow {
           0%, 100% { filter: drop-shadow(0 0 8px currentColor); }
           50% { filter: drop-shadow(0 0 16px currentColor); }
