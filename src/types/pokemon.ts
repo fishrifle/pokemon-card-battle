@@ -1,28 +1,42 @@
-export interface PokemonMove {
+export type EnergyType =
+  | 'Fire' | 'Water' | 'Grass' | 'Lightning' | 'Psychic'
+  | 'Fighting' | 'Darkness' | 'Metal' | 'Fairy' | 'Dragon' | 'Colorless';
+
+export type StatusCondition = 'poison' | 'burn' | 'paralyze' | 'sleep' | 'confuse';
+
+export interface TCGAttack {
   name: string;
+  energyCost: EnergyType[];
   damage: number;
+  effect?: string;
+  statusEffect?: StatusCondition;
+  coinFlip?: boolean;
+  selfDamage?: number;
+}
+
+export interface TCGAbility {
+  name: string;
   description: string;
 }
 
 export interface PokemonCard {
   id: number;
   name: string;
-  types: string[]; // Updated to support dual types like Fire/Flying
+  stage: 'Basic' | 'Stage 1' | 'Stage 2';
+  types: string[];
+  energyType: EnergyType;
   hp: number;
   maxHp: number;
-  attack: number;
-  defense: number;
-  specialMove: PokemonMove;
+  attacks: TCGAttack[];
+  ability?: TCGAbility;
+  weakness: { type: string; multiplier: number } | null;
+  resistance: { type: string; reduction: number } | null;
+  retreatCost: number;
+  energyAttached: EnergyType[];
+  statusCondition: StatusCondition | null;
   image: string;
   wins: number;
   losses: number;
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
-}
-
-export interface BattleState {
-  player1Card: PokemonCard | null;
-  player2Card: PokemonCard | null;
-  currentTurn: 'player1' | 'player2';
-  battlePhase: 'selecting' | 'battle' | 'finished';
-  winner: 'player1' | 'player2' | null;
+  setNumber: string;
 }

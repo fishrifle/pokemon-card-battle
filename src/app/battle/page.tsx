@@ -1,726 +1,933 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from "react";
-import { PokemonCard as PokemonCardType } from '@/types/pokemon';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { PokemonCard as PokemonCardType, EnergyType, StatusCondition, TCGAttack } from '@/types/pokemon';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { useSound } from '@/hooks/useSound';
-import ParticleEffect from '@/components/ParticleEffect';
+import { ENERGY_CONFIG } from '@/components/EnergyIcon';
+import PokemonCard from '@/components/PokemonCard';
+import { Arena, ARENAS } from '@/app/page';
+import { getPokemonCards } from '@/data/pokemonData';
+import { GAME_TYPE_TO_ENERGY } from '@/data/tcgUtils';
 
-interface BattleLog {
-  id: number;
-  attacker: string;
-  damage: number;
-  critical: boolean;
-  roll: number;
-  effectiveness?: 'super' | 'weak' | 'normal';
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface BattleCard extends PokemonCardType {
+  currentHp: number;
+  prizesWorth: number;
 }
 
-interface FloatingDamage {
+interface LogEntry {
   id: number;
-  damage: number;
-  critical: boolean;
-  x: number;
-  y: number;
-}
-
-interface EffectivenessMessage {
   text: string;
+  type: 'attack' | 'status' | 'prize' | 'system' | 'ai';
   color: string;
 }
 
-// Clickable Dice
-const Dice = ({ value, color, rolling, canClick, onClick }: {
-  value: number; color: 'red' | 'blue'; rolling: boolean; canClick: boolean; onClick: () => void
-}) => {
-  const dots: Record<number, string[]> = {
-    1: ['center'],
-    2: ['top-right', 'bottom-left'],
-    3: ['top-right', 'center', 'bottom-left'],
-    4: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
-    5: ['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right'],
-    6: ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right'],
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function cloneCard(c: BattleCard): BattleCard {
+  return { ...c, energyAttached: [...c.energyAttached] };
+}
+
+function getArenaMultiplier(arena: Arena, attackerTypes: string[]): number {
+  if (!arena.modifier) return 1;
+  const energyTypes = attackerTypes.map(t => GAME_TYPE_TO_ENERGY[t] || 'Colorless');
+  if (energyTypes.includes(arena.modifier.type as EnergyType)) return arena.modifier.bonus;
+  if (arena.modifier.penalty && energyTypes.includes(arena.modifier.penalty.type as EnergyType))
+    return arena.modifier.penalty.amount;
+  return 1;
+}
+
+function calcDamage(
+  attacker: BattleCard,
+  defender: BattleCard,
+  attack: TCGAttack,
+  arena: Arena
+): { damage: number; effectiveness: 'super' | 'weak' | 'normal'; isCrit: boolean } {
+  if (attack.damage === 0) return { damage: 0, effectiveness: 'normal', isCrit: false };
+
+  let dmg = attack.damage;
+
+  // Weakness ×2
+  const effectiveness: 'super' | 'weak' | 'normal' = (() => {
+    if (defender.weakness) {
+      const atkEnergy = GAME_TYPE_TO_ENERGY[attacker.types[0]] || 'Colorless';
+      if (atkEnergy === defender.weakness.type || attacker.types[0] === defender.weakness.type) {
+        dmg *= defender.weakness.multiplier;
+        return 'super';
+      }
+    }
+    if (defender.resistance) {
+      const atkEnergy = GAME_TYPE_TO_ENERGY[attacker.types[0]] || 'Colorless';
+      if (atkEnergy === defender.resistance.type || attacker.types[0] === defender.resistance.type) {
+        dmg -= defender.resistance.reduction;
+        return 'weak';
+      }
+    }
+    return 'normal';
+  })();
+
+  // Arena modifier
+  dmg = Math.floor(dmg * getArenaMultiplier(arena, attacker.types));
+
+  // Coin flip attacks (50% chance to do full damage, 50% for reduced)
+  const isCrit = attack.coinFlip ? Math.random() < 0.5 : false;
+  if (attack.coinFlip && !isCrit) dmg = Math.max(0, dmg - 30);
+
+  return { damage: Math.max(0, dmg), effectiveness, isCrit };
+}
+
+function canUseAttack(card: BattleCard, attack: TCGAttack): boolean {
+  if (attack.damage === 0) return card.energyAttached.length >= attack.energyCost.length;
+  const energyNeeded: Partial<Record<EnergyType, number>> = {};
+  for (const e of attack.energyCost) {
+    energyNeeded[e] = (energyNeeded[e] || 0) + 1;
+  }
+  const energyHave: Partial<Record<EnergyType, number>> = {};
+  for (const e of card.energyAttached) {
+    energyHave[e] = (energyHave[e] || 0) + 1;
+  }
+  let colorlessNeeded = energyNeeded['Colorless'] || 0;
+  for (const [type, count] of Object.entries(energyNeeded) as [EnergyType, number][]) {
+    if (type === 'Colorless') continue;
+    const have = energyHave[type] || 0;
+    if (have < count) {
+      const diff = count - have;
+      colorlessNeeded += diff;
+    }
+  }
+  return card.energyAttached.length >= (attack.energyCost.length - (energyNeeded['Colorless'] || 0)) + colorlessNeeded;
+}
+
+function applyStatusDamage(card: BattleCard): { card: BattleCard; text: string | null } {
+  let updated = cloneCard(card);
+  let text: string | null = null;
+  if (card.statusCondition === 'poison') {
+    updated.currentHp = Math.max(0, updated.currentHp - 10);
+    text = `${card.name} is poisoned and took 10 damage!`;
+  } else if (card.statusCondition === 'burn') {
+    updated.currentHp = Math.max(0, updated.currentHp - 20);
+    const healFlip = Math.random() < 0.5;
+    if (healFlip) { updated.statusCondition = null; text = `${card.name} is burned (20 dmg) and the burn healed!`; }
+    else { text = `${card.name} is burned and took 20 damage!`; }
+  } else if (card.statusCondition === 'paralyze') {
+    updated.statusCondition = null;
+    text = `${card.name}'s paralysis wore off.`;
+  } else if (card.statusCondition === 'sleep') {
+    const wakeFlip = Math.random() < 0.5;
+    if (wakeFlip) { updated.statusCondition = null; text = `${card.name} woke up!`; }
+    else { text = `${card.name} is asleep.`; }
+  }
+  return { card: updated, text };
+}
+
+function toBattleCard(card: PokemonCardType): BattleCard {
+  return {
+    ...card,
+    energyAttached: [],
+    statusCondition: null,
+    currentHp: card.maxHp,
+    prizesWorth: card.rarity === 'legendary' ? 2 : 1,
   };
-  const pos: Record<string, string> = {
-    'center': 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-    'top-left': 'top-1 left-1', 'top-right': 'top-1 right-1',
-    'middle-left': 'top-1/2 left-1 -translate-y-1/2', 'middle-right': 'top-1/2 right-1 -translate-y-1/2',
-    'bottom-left': 'bottom-1 left-1', 'bottom-right': 'bottom-1 right-1',
-  };
-  const bg = color === 'red' ? 'from-red-600 to-red-800' : 'from-blue-600 to-blue-800';
+}
 
-  return (
-    <div
-      onClick={canClick ? onClick : undefined}
-      className={`relative w-12 h-12 rounded-lg bg-gradient-to-br ${bg} border-2 shadow-xl transition-all duration-200 ${
-        rolling ? 'animate-spin' : ''
-      } ${canClick ? 'cursor-pointer hover:scale-110 border-yellow-400 ring-2 ring-yellow-400/50 animate-pulse' : 'border-white/30'}`}
-    >
-      {(dots[value] || []).map((p, i) => (
-        <div key={i} className={`absolute w-2 h-2 bg-white rounded-full ${pos[p]}`} />
-      ))}
-    </div>
-  );
-};
+function pickAIAttack(ai: BattleCard, player: BattleCard): number {
+  const available = ai.attacks
+    .map((atk, i) => ({ atk, i }))
+    .filter(({ atk }) => canUseAttack(ai, atk));
+  if (available.length === 0) return -1;
+  // prefer highest damage
+  available.sort((a, b) => {
+    const scoreB = b.atk.damage * (player.weakness?.type === (GAME_TYPE_TO_ENERGY[ai.types[0]] || '') ? 2 : 1);
+    const scoreA = a.atk.damage * (player.weakness?.type === (GAME_TYPE_TO_ENERGY[ai.types[0]] || '') ? 2 : 1);
+    return scoreB - scoreA;
+  });
+  return available[0].i;
+}
 
-// Type color mappings
-const typeColors: Record<string, { bg: string; border: string; glow: string }> = {
-  Fire:     { bg: 'from-orange-500 via-red-600 to-orange-700',     border: '#F97316', glow: 'shadow-orange-500/60' },
-  Water:    { bg: 'from-blue-400 via-blue-600 to-cyan-600',         border: '#3B82F6', glow: 'shadow-blue-500/60' },
-  Grass:    { bg: 'from-green-400 via-emerald-600 to-green-700',    border: '#22C55E', glow: 'shadow-green-500/60' },
-  Electric: { bg: 'from-yellow-300 via-yellow-500 to-amber-400',    border: '#EAB308', glow: 'shadow-yellow-400/70' },
-  Psychic:  { bg: 'from-pink-500 via-fuchsia-600 to-pink-700',      border: '#EC4899', glow: 'shadow-pink-500/60' },
-  Fighting: { bg: 'from-rose-700 via-red-800 to-red-900',           border: '#BE123C', glow: 'shadow-rose-700/60' },
-  Rock:     { bg: 'from-stone-500 via-amber-700 to-stone-600',      border: '#A8A29E', glow: 'shadow-stone-500/50' },
-  Ground:   { bg: 'from-amber-500 via-yellow-700 to-orange-800',    border: '#D97706', glow: 'shadow-amber-500/60' },
-  Flying:   { bg: 'from-sky-300 via-indigo-400 to-blue-500',        border: '#7DD3FC', glow: 'shadow-sky-400/60' },
-  Bug:      { bg: 'from-lime-400 via-green-600 to-lime-700',        border: '#84CC16', glow: 'shadow-lime-500/60' },
-  Poison:   { bg: 'from-purple-500 via-violet-700 to-purple-800',   border: '#9333EA', glow: 'shadow-purple-600/60' },
-  Ghost:    { bg: 'from-indigo-800 via-purple-900 to-slate-900',    border: '#8B5CF6', glow: 'shadow-violet-600/60' },
-  Dragon:   { bg: 'from-indigo-500 via-purple-700 to-blue-800',     border: '#6366F1', glow: 'shadow-indigo-500/60' },
-  Ice:      { bg: 'from-cyan-200 via-sky-400 to-cyan-500',          border: '#06B6D4', glow: 'shadow-cyan-500/60' },
-  Steel:    { bg: 'from-slate-300 via-gray-500 to-zinc-500',        border: '#94A3B8', glow: 'shadow-slate-400/60' },
-  Dark:     { bg: 'from-gray-800 via-indigo-950 to-gray-900',       border: '#8B5CF6', glow: 'shadow-violet-900/70' },
-  Fairy:    { bg: 'from-pink-300 via-rose-400 to-pink-500',         border: '#F472B6', glow: 'shadow-pink-400/60' },
-  Normal:   { bg: 'from-gray-300 via-stone-400 to-gray-500',        border: '#9CA3AF', glow: 'shadow-gray-400/50' },
-};
+// ─── Component ────────────────────────────────────────────────────────────────
 
-// Rarity border effects
-const rarityStyles: Record<string, string> = {
-  common: 'border-2',
-  uncommon: 'border-2 shadow-lg',
-  rare: 'border-[3px] shadow-xl',
-  legendary: 'border-4 shadow-2xl',
-};
-
-// Playing Card sized Pokemon Card with type colors and rarity effects
-const PlayerCard = ({ card, isActive, isLoser, isAttacking, isHit }: {
-  card: PokemonCardType;
-  isActive: boolean;
-  isLoser: boolean;
-  isAttacking?: boolean;
-  isHit?: boolean;
-}) => {
-  const hpPct = (card.hp / card.maxHp) * 100;
-  const hpColor = hpPct > 60 ? 'bg-green-500' : hpPct > 30 ? 'bg-yellow-500' : 'bg-red-500';
-
-  const primaryType = card.types[0] || 'Normal';
-  const colors = typeColors[primaryType] || typeColors.Normal;
-  const rarityClass = rarityStyles[card.rarity] || rarityStyles.common;
-  const isLegendary = card.rarity === 'legendary';
-  const isRare = card.rarity === 'rare' || isLegendary;
-
-  return (
-    <div className={`relative w-[140px] h-[196px] md:w-[180px] md:h-[252px] rounded-xl overflow-hidden transition-all duration-300 ${rarityClass} ${colors.glow} ${
-      isActive ? 'ring-4 ring-yellow-400 scale-105' : ''
-    } ${isLoser ? 'opacity-40 grayscale' : ''} ${isLegendary ? 'animate-legendary-glow' : ''} ${
-      isAttacking ? 'animate-attack-lunge' : ''
-    } ${isHit ? 'animate-hit-flash' : ''}`}
-    style={{
-      borderColor: colors.border,
-      boxShadow: isRare ? `0 0 20px ${colors.border}40, 0 0 40px ${colors.border}20` : undefined
-    }}>
-      {/* Card background gradient based on type */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg}`} />
-
-      {/* Holographic overlay for rare/legendary */}
-      {isRare && (
-        <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-white/10 animate-shimmer" />
-      )}
-      {isLegendary && (
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -skew-x-12 animate-holo-sweep" />
-        </div>
-      )}
-
-      {/* Inner border glow */}
-      <div className="absolute inset-1 rounded-lg border border-white/20" />
-
-      {/* Pokemon image area - NOW 75% of card */}
-      <div className="relative h-[75%] flex items-end justify-center overflow-hidden pb-2">
-        {/* Radial glow behind Pokemon */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className={`w-32 h-32 md:w-40 md:h-40 rounded-full bg-white/20 blur-xl`} />
-        </div>
-
-        {/* Pokemon name at top */}
-        <div className="absolute top-1 left-0 right-0 z-10">
-          <h3 className="font-bold text-sm md:text-base text-white text-center truncate drop-shadow-lg px-2"
-              style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
-            {card.name}
-          </h3>
-        </div>
-
-        {/* Bigger Pokemon image */}
-        <Image
-          src={card.image}
-          alt={card.name}
-          width={120}
-          height={120}
-          className="pixelated drop-shadow-2xl md:w-[150px] md:h-[150px] relative z-10"
-          style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))' }}
-        />
-
-        {/* HP Bar overlaid at bottom of image area */}
-        <div className="absolute bottom-0 left-2 right-2 z-20">
-          <div className="relative h-5 bg-black/60 rounded-full overflow-hidden border-2 border-white/30 backdrop-blur-sm">
-            <div className={`h-full ${hpColor} transition-all duration-500`} style={{ width: `${hpPct}%` }} />
-            <span className="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold text-white drop-shadow-lg">
-              {card.hp} / {card.maxHp} HP
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Card footer with types and rarity */}
-      <div className="relative h-[25%] bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center gap-1 px-2">
-        {/* Types */}
-        <div className="flex justify-center gap-1">
-          {card.types.slice(0, 2).map(type => {
-            const typeColor = typeColors[type] || typeColors.Normal;
-            return (
-              <span key={type}
-                className="text-[9px] md:text-[11px] px-2 py-0.5 rounded-full font-bold uppercase text-white"
-                style={{
-                  background: `linear-gradient(135deg, ${typeColor.border}, ${typeColor.border}99)`,
-                  boxShadow: `0 2px 4px ${typeColor.border}40`
-                }}>
-                {type}
-              </span>
-            );
-          })}
-        </div>
-
-        {/* Rarity indicator */}
-        <div className="flex items-center gap-0.5">
-          {card.rarity === 'legendary' && <span className="text-yellow-400 text-xs">&#9733;&#9733;&#9733;</span>}
-          {card.rarity === 'rare' && <span className="text-yellow-400 text-xs">&#9733;&#9733;</span>}
-          {card.rarity === 'uncommon' && <span className="text-gray-300 text-xs">&#9733;</span>}
-        </div>
-      </div>
-    </div>
-  );
+const STATUS_ICONS: Record<string, string> = {
+  poison: '☠', burn: '🔥', paralyze: '⚡', sleep: '💤', confuse: '😵',
 };
 
 export default function BattlePage() {
-  const [battleCards, setBattleCards] = useState<PokemonCardType[]>([]);
-  const [player1Card, setPlayer1Card] = useState<PokemonCardType | null>(null);
-  const [player2Card, setPlayer2Card] = useState<PokemonCardType | null>(null);
-  const [currentTurn, setCurrentTurn] = useState<'player1' | 'player2'>('player1');
-  const [battlePhase, setBattlePhase] = useState<'setup' | 'fighting' | 'finished'>('setup');
-  const [winner, setWinner] = useState<'player1' | 'player2' | null>(null);
-  const [battleLog, setBattleLog] = useState<BattleLog[]>([]);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [showParticles, setShowParticles] = useState(false);
-  const [particleType, setParticleType] = useState<'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'>('impact');
-
-  const [player1Dice, setPlayer1Dice] = useState<number>(1);
-  const [player2Dice, setPlayer2Dice] = useState<number>(1);
-  const [isRolling, setIsRolling] = useState(false);
-  const logIdRef = useRef(0);
-  const logContainerRef = useRef<HTMLDivElement>(null);
-
-  // Animation states
-  const [screenShake, setScreenShake] = useState(false);
-  const [p1Attacking, setP1Attacking] = useState(false);
-  const [p2Attacking, setP2Attacking] = useState(false);
-  const [p1Hit, setP1Hit] = useState(false);
-  const [p2Hit, setP2Hit] = useState(false);
-  const [floatingDamage, setFloatingDamage] = useState<FloatingDamage | null>(null);
-  const [effectivenessMsg, setEffectivenessMsg] = useState<EffectivenessMessage | null>(null);
-  const [attackName, setAttackName] = useState<string | null>(null);
-  const damageIdRef = useRef(0);
-
-  // Stable particle positions — computed once to avoid hydration mismatch and render-flicker
-  const bgParticles = useMemo(() =>
-    [...Array(20)].map(() => ({
-      left: `${10 + Math.random() * 80}%`,
-      top: `${10 + Math.random() * 80}%`,
-      dur: `${3 + Math.random() * 4}s`,
-      del: `${Math.random() * 3}s`,
-      op: 0.4 + Math.random() * 0.4,
-    })), []
-  );
-
   const router = useRouter();
   const { playAttack, playCriticalHit, playVictory, playDefeat } = useSound();
 
+  const [arena, setArena] = useState<Arena>(ARENAS[0]);
+  const [playerActive, setPlayerActive] = useState<BattleCard | null>(null);
+  const [playerBench, setPlayerBench] = useState<BattleCard[]>([]);
+  const [playerPrizes, setPlayerPrizes] = useState(3);
+  const [playerEnergyPlayed, setPlayerEnergyPlayed] = useState(false);
+  const [playerAttacked, setPlayerAttacked] = useState(false);
+  const [playerCanParalyze, setPlayerCanParalyze] = useState(true);
+
+  const [aiActive, setAiActive] = useState<BattleCard | null>(null);
+  const [aiBench, setAiBench] = useState<BattleCard[]>([]);
+  const [aiPrizes, setAiPrizes] = useState(3);
+
+  const [currentTurn, setCurrentTurn] = useState<'player' | 'ai'>('player');
+  const [phase, setPhase] = useState<'battle' | 'finished'>('battle');
+  const [winner, setWinner] = useState<'player' | 'ai' | null>(null);
+
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [animatingAttack, setAnimatingAttack] = useState<'player' | 'ai' | null>(null);
+  const [animatingHit, setAnimatingHit] = useState<'player' | 'ai' | null>(null);
+  const [floatingDmg, setFloatingDmg] = useState<{ val: number; side: 'player' | 'ai'; crit: boolean } | null>(null);
+  const [effectMsg, setEffectMsg] = useState<{ text: string; color: string } | null>(null);
+  const [screenShake, setScreenShake] = useState(false);
+  const [selectingBench, setSelectingBench] = useState<'retreat' | 'sendUp' | null>(null);
+  const [aiThinking, setAiThinking] = useState(false);
+
+  const logIdRef = useRef(0);
+  const logEndRef = useRef<HTMLDivElement>(null);
+  const aiTurnPendingRef = useRef(false);
+
+  const addLog = useCallback((text: string, type: LogEntry['type'] = 'system', color = 'text-gray-300') => {
+    logIdRef.current++;
+    setLog(prev => [...prev.slice(-20), { id: logIdRef.current, text, type, color }]);
+  }, []);
+
+  // ── Setup ──
   useEffect(() => {
     const savedCards = localStorage.getItem('battleCards');
-    if (savedCards) {
-      const cards = JSON.parse(savedCards);
-      setBattleCards(cards);
-      setPlayer1Card({ ...cards[0] });
-      setPlayer2Card({ ...cards[1] });
-      setTimeout(() => setBattlePhase('fighting'), 500);
-    } else {
-      router.push('/');
-    }
-  }, [router]);
+    const savedArena = localStorage.getItem('selectedArena');
+    if (!savedCards) { router.push('/'); return; }
+
+    const playerCards: PokemonCardType[] = JSON.parse(savedCards);
+    if (savedArena) setArena(JSON.parse(savedArena));
+
+    setPlayerActive(toBattleCard(playerCards[0]));
+    setPlayerBench(playerCards.slice(1).map(toBattleCard));
+
+    // AI gets random Pokemon from pool
+    const allCards = getPokemonCards();
+    const shuffled = [...allCards].sort(() => Math.random() - 0.5);
+    const aiTeam = shuffled.slice(0, 3);
+    setAiActive(toBattleCard(aiTeam[0]));
+    setAiBench(aiTeam.slice(1).map(toBattleCard));
+
+    addLog('Battle started! Player goes first.', 'system', 'text-yellow-400');
+  }, [router, addLog]);
 
   useEffect(() => {
-    if (winner && battlePhase === 'finished') {
-      updatePokemonStats();
-    }
-  }, [winner, battlePhase, battleCards]);
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [log]);
 
-  // Auto-scroll battle log
+  // ── Save stats on finish ──
   useEffect(() => {
-    if (logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-    }
-  }, [battleLog]);
-
-  const rollDice = () => Math.floor(Math.random() * 6) + 1;
-
-  const getTypeEffectiveness = (attackerTypes: string[], defenderTypes: string[]) => {
-    const superEff: Record<string, string[]> = {
-      Fire: ['Grass', 'Bug', 'Steel', 'Ice'], Water: ['Fire', 'Ground', 'Rock'],
-      Grass: ['Water', 'Ground', 'Rock'], Electric: ['Water', 'Flying'],
-      Psychic: ['Fighting', 'Poison'], Fighting: ['Normal', 'Rock', 'Steel', 'Ice', 'Dark'],
-      Ground: ['Fire', 'Electric', 'Poison', 'Rock', 'Steel'], Flying: ['Grass', 'Fighting', 'Bug'],
-      Rock: ['Fire', 'Ice', 'Flying', 'Bug'], Ghost: ['Psychic', 'Ghost'],
-      Dragon: ['Dragon'], Dark: ['Psychic', 'Ghost'], Steel: ['Ice', 'Rock', 'Fairy'],
-      Fairy: ['Fighting', 'Dragon', 'Dark']
-    };
-    const immune: Record<string, string[]> = {
-      Normal: ['Ghost'], Electric: ['Ground'], Fighting: ['Ghost'],
-      Ground: ['Flying'], Ghost: ['Normal', 'Fighting'], Steel: ['Poison'],
-    };
-    for (const at of attackerTypes) {
-      for (const dt of defenderTypes) {
-        if (immune[at]?.includes(dt)) return 0;      // immunity — no damage
-        if (superEff[at]?.includes(dt)) return 1.5;  // super effective
-        if (superEff[dt]?.includes(at)) return 0.75; // not very effective
-      }
-    }
-    return 1.0;
-  };
-
-  const handleBattleClick = () => {
-    if (!player1Card || !player2Card || isAnimating || battlePhase !== 'fighting') return;
-
-    setIsAnimating(true);
-    setIsRolling(true);
-
-    let count = 0;
-    const interval = setInterval(() => {
-      setPlayer1Dice(rollDice());
-      setPlayer2Dice(rollDice());
-      count++;
-      if (count >= 8) {
-        clearInterval(interval);
-        const p1 = rollDice(), p2 = rollDice();
-        setPlayer1Dice(p1);
-        setPlayer2Dice(p2);
-        setIsRolling(false);
-        setTimeout(() => processBattle(p1, p2), 250);
-      }
-    }, 50);
-  };
-
-  const processBattle = (p1Roll: number, p2Roll: number) => {
-    const isP1 = currentTurn === 'player1';
-    const attacker = isP1 ? player1Card : player2Card;
-    const defender = isP1 ? player2Card : player1Card;
-    const atkRoll = isP1 ? p1Roll : p2Roll;
-    const defRoll = isP1 ? p2Roll : p1Roll;
-
-    if (!attacker || !defender) return;
-
-    const typeMult = getTypeEffectiveness(attacker.types, defender.types);
-    const crit = atkRoll === 6;
-
-    // Defense reduces damage: high defense tanks hits, min 40% of base still lands
-    const defMod = Math.max(0.4, 1 - (defender.defense / 220));
-    const base = Math.floor(attacker.specialMove.damage * 0.2 * defMod);
-    const bonus = atkRoll * 5 - defRoll * 3;
-
-    let dmg: number;
-    if (typeMult === 0) {
-      // Immunity — no damage at all
-      dmg = 0;
-    } else {
-      dmg = Math.floor((base + bonus) * typeMult);
-      if (crit) dmg = Math.floor(dmg * 1.5);
-      dmg = Math.max(Math.floor(defender.maxHp * 0.15), Math.min(Math.floor(defender.maxHp * 0.5), Math.max(1, dmg)));
-    }
-
-    const newHP = Math.max(0, defender.hp - dmg);
-
-    // Determine effectiveness
-    const effectiveness = typeMult > 1 ? 'super' : typeMult === 0 ? 'weak' : typeMult < 1 ? 'weak' : 'normal';
-
-    logIdRef.current++;
-    setBattleLog(prev => [...prev.slice(-6), { id: logIdRef.current, attacker: attacker.name, damage: dmg, critical: crit, roll: atkRoll, effectiveness }]);
-
-    // Show attack name
-    setAttackName(attacker.specialMove.name);
-    setTimeout(() => setAttackName(null), 1000);
-
-    // Attacker lunge animation
-    if (isP1) setP1Attacking(true);
-    else setP2Attacking(true);
-    setTimeout(() => { setP1Attacking(false); setP2Attacking(false); }, 300);
-
-    // Play sound and particles
-    playAttack(attacker.types[0]);
-    const typeMap: Record<string, 'fire' | 'water' | 'electric' | 'grass' | 'psychic' | 'impact'> = {
-      Fire: 'fire', Water: 'water', Electric: 'electric', Grass: 'grass', Psychic: 'psychic'
-    };
-    setParticleType(typeMap[attacker.types[0]] || 'impact');
-    setShowParticles(true);
-
-    // Hit flash and screen shake after a brief delay
-    setTimeout(() => {
-      if (isP1) setP2Hit(true);
-      else setP1Hit(true);
-      setScreenShake(true);
-
-      // Floating damage number
-      damageIdRef.current++;
-      setFloatingDamage({
-        id: damageIdRef.current,
-        damage: dmg,
-        critical: crit,
-        x: isP1 ? 65 : 35,
-        y: 40
+    if (phase === 'finished' && winner) {
+      if (winner === 'player') playVictory(); else playDefeat();
+      const stats = JSON.parse(localStorage.getItem('pokemonStats') || '{}');
+      const savedCards: PokemonCardType[] = JSON.parse(localStorage.getItem('battleCards') || '[]');
+      savedCards.forEach(c => {
+        if (!stats[c.id]) stats[c.id] = { wins: 0, losses: 0 };
+        if (winner === 'player') stats[c.id].wins++; else stats[c.id].losses++;
       });
+      localStorage.setItem('pokemonStats', JSON.stringify(stats));
+    }
+  }, [phase, winner, playVictory, playDefeat]);
 
-      // Type effectiveness message
-      if (typeMult === 0) {
-        setEffectivenessMsg({ text: "No effect!", color: "text-gray-400" });
-      } else if (typeMult > 1) {
-        setEffectivenessMsg({ text: "SUPER EFFECTIVE!", color: "text-green-400" });
-      } else if (typeMult < 1) {
-        setEffectivenessMsg({ text: "Not very effective...", color: "text-orange-400" });
-      }
-      setTimeout(() => setEffectivenessMsg(null), 1200);
-      setTimeout(() => setFloatingDamage(null), 1000);
-      setTimeout(() => { setP1Hit(false); setP2Hit(false); setScreenShake(false); }, 200);
-    }, 200);
-
-    if (crit) setTimeout(() => playCriticalHit(), 80);
-
-    if (isP1) setPlayer2Card(prev => prev ? { ...prev, hp: newHP } : null);
-    else setPlayer1Card(prev => prev ? { ...prev, hp: newHP } : null);
+  // ── AI turn trigger ──
+  useEffect(() => {
+    if (currentTurn !== 'ai' || phase !== 'battle' || aiTurnPendingRef.current) return;
+    aiTurnPendingRef.current = true;
+    setAiThinking(true);
 
     setTimeout(() => {
-      if (newHP <= 0) {
-        setWinner(currentTurn);
-        setBattlePhase('finished');
-        setTimeout(() => { playVictory(); setTimeout(() => playDefeat(), 200); }, 100);
-      } else {
-        setCurrentTurn(isP1 ? 'player2' : 'player1');
+      setAiThinking(false);
+      runAiTurn();
+      aiTurnPendingRef.current = false;
+    }, 1200);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTurn, phase]);
+
+  // ─── Player actions ───────────────────────────────────────────────────────
+
+  const handleAttachEnergy = () => {
+    if (!playerActive || playerEnergyPlayed || currentTurn !== 'player') return;
+    const energyToAttach = playerActive.energyType;
+    setPlayerActive(prev => prev ? { ...prev, energyAttached: [...prev.energyAttached, energyToAttach] } : prev);
+    setPlayerEnergyPlayed(true);
+    addLog(`Attached ${energyToAttach} energy to ${playerActive.name}.`, 'system', 'text-cyan-400');
+  };
+
+  const handleAttachEnergyToBench = (benchIdx: number) => {
+    if (playerEnergyPlayed || currentTurn !== 'player') return;
+    setPlayerBench(prev => {
+      const updated = [...prev];
+      const card = updated[benchIdx];
+      updated[benchIdx] = { ...card, energyAttached: [...card.energyAttached, card.energyType] };
+      return updated;
+    });
+    setPlayerEnergyPlayed(true);
+    addLog(`Attached energy to bench Pokémon.`, 'system', 'text-cyan-400');
+  };
+
+  const handlePlayerAttack = (attackIdx: number) => {
+    if (!playerActive || !aiActive || playerAttacked || currentTurn !== 'player' || phase !== 'battle') return;
+    const atk = playerActive.attacks[attackIdx];
+    if (!canUseAttack(playerActive, atk)) {
+      addLog(`Not enough energy to use ${atk.name}!`, 'system', 'text-red-400');
+      return;
+    }
+
+    // Check can't attack due to status
+    if (playerActive.statusCondition === 'paralyze' || playerActive.statusCondition === 'sleep') {
+      addLog(`${playerActive.name} can't attack due to ${playerActive.statusCondition}!`, 'status', 'text-orange-400');
+      setPlayerAttacked(true);
+      return;
+    }
+    if (playerActive.statusCondition === 'confuse') {
+      const confuseHit = Math.random() < 0.5;
+      if (!confuseHit) {
+        addLog(`${playerActive.name} is confused and hurt itself for 30 damage!`, 'status', 'text-orange-400');
+        setPlayerActive(prev => prev ? { ...prev, currentHp: Math.max(0, prev.currentHp - 30) } : prev);
+        setPlayerAttacked(true);
+        endPlayerTurn();
+        return;
       }
-      setIsAnimating(false);
-    }, 800);
+    }
+
+    const { damage, effectiveness, isCrit } = calcDamage(playerActive, aiActive, atk, arena);
+
+    playAttack(playerActive.types[0]);
+    if (isCrit) playCriticalHit();
+
+    setAnimatingAttack('player');
+    setTimeout(() => setAnimatingAttack(null), 400);
+
+    setTimeout(() => {
+      setAnimatingHit('ai');
+      setScreenShake(true);
+      setFloatingDmg({ val: damage, side: 'ai', crit: isCrit });
+      if (effectiveness === 'super') setEffectMsg({ text: 'SUPER EFFECTIVE! ×2', color: 'text-green-400' });
+      else if (effectiveness === 'weak') setEffectMsg({ text: 'Not very effective... -30', color: 'text-orange-400' });
+      setTimeout(() => { setAnimatingHit(null); setScreenShake(false); setFloatingDmg(null); setEffectMsg(null); }, 800);
+    }, 250);
+
+    // Apply damage
+    const newHp = Math.max(0, aiActive.currentHp - damage);
+    const logMsg = `${playerActive.name} used ${atk.name}! ${damage} damage${isCrit ? ' (CRIT!)' : ''}${effectiveness === 'super' ? ' — Super Effective!' : effectiveness === 'weak' ? ' — Not very effective.' : ''}`;;
+    addLog(logMsg, 'attack', effectiveness === 'super' ? 'text-green-400' : 'text-white');
+
+    // Apply status effect
+    if (atk.statusEffect && !aiActive.statusCondition) {
+      const statusRoll = Math.random() < 0.5;
+      if (statusRoll) {
+        setAiActive(prev => prev ? { ...prev, currentHp: newHp, statusCondition: atk.statusEffect! } : prev);
+        addLog(`${aiActive.name} is now ${atk.statusEffect}ed!`, 'status', 'text-purple-400');
+      } else {
+        setAiActive(prev => prev ? { ...prev, currentHp: newHp } : prev);
+      }
+    } else {
+      setAiActive(prev => prev ? { ...prev, currentHp: newHp } : prev);
+    }
+
+    setPlayerAttacked(true);
+
+    // Check KO
+    setTimeout(() => {
+      if (newHp <= 0) {
+        handleKO('player', aiActive);
+      } else {
+        endPlayerTurn();
+      }
+    }, 900);
   };
 
-  const updatePokemonStats = () => {
-    if (!winner || !battleCards.length) return;
-    const winnerCard = winner === 'player1' ? battleCards[0] : battleCards[1];
-    const loserCard = winner === 'player1' ? battleCards[1] : battleCards[0];
-    const stats = JSON.parse(localStorage.getItem('pokemonStats') || '{}');
-    if (!stats[winnerCard.id]) stats[winnerCard.id] = { wins: 0, losses: 0 };
-    if (!stats[loserCard.id]) stats[loserCard.id] = { wins: 0, losses: 0 };
-    stats[winnerCard.id].wins++;
-    stats[loserCard.id].losses++;
-    localStorage.setItem('pokemonStats', JSON.stringify(stats));
+  const handleRetreat = () => {
+    if (!playerActive || currentTurn !== 'player' || playerBench.length === 0) return;
+    if (playerActive.energyAttached.length < playerActive.retreatCost) {
+      addLog(`Need ${playerActive.retreatCost} energy to retreat — only have ${playerActive.energyAttached.length}!`, 'system', 'text-red-400');
+      return;
+    }
+    setSelectingBench('retreat');
   };
 
-  if (!player1Card || !player2Card) {
-    return <div className="h-screen bg-gray-900 flex items-center justify-center text-white">Loading...</div>;
+  const executRetreat = (benchIdx: number) => {
+    if (!playerActive) return;
+    // Discard retreat cost energy
+    const newEnergy = [...playerActive.energyAttached].slice(playerActive.retreatCost);
+    const retreating = { ...playerActive, energyAttached: newEnergy };
+    const incoming = { ...playerBench[benchIdx] };
+    const newBench = [...playerBench];
+    newBench[benchIdx] = retreating;
+    setPlayerBench(newBench);
+    setPlayerActive(incoming);
+    setSelectingBench(null);
+    addLog(`${playerActive.name} retreated! ${incoming.name} entered the battle.`, 'system', 'text-cyan-400');
+    setPlayerAttacked(true);
+    endPlayerTurn();
+  };
+
+  const handleSendUpBench = (benchIdx: number) => {
+    const incoming = { ...playerBench[benchIdx] };
+    const newBench = playerBench.filter((_, i) => i !== benchIdx);
+    setPlayerBench(newBench);
+    setPlayerActive(incoming);
+    setSelectingBench(null);
+    addLog(`${incoming.name} was sent up to battle!`, 'system', 'text-yellow-400');
+    endPlayerTurn();
+  };
+
+  const handlePassTurn = () => {
+    addLog('Player passed their turn.', 'system', 'text-gray-400');
+    endPlayerTurn();
+  };
+
+  const endPlayerTurn = useCallback(() => {
+    // Apply status damage at end of player turn
+    if (playerActive) {
+      const { card, text } = applyStatusDamage(playerActive);
+      setPlayerActive(card);
+      if (text) addLog(text, 'status', 'text-orange-400');
+      if (card.currentHp <= 0) {
+        handleKO('ai', card);
+        return;
+      }
+    }
+    setCurrentTurn('ai');
+    setPlayerEnergyPlayed(false);
+    setPlayerAttacked(false);
+    setPlayerCanParalyze(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerActive, addLog]);
+
+  // ─── KO handling ─────────────────────────────────────────────────────────
+
+  const handleKO = useCallback((scoringPlayer: 'player' | 'ai', knockedCard: BattleCard) => {
+    const prizesEarned = knockedCard.prizesWorth;
+    addLog(`${knockedCard.name} was knocked out! ${scoringPlayer === 'player' ? 'Player' : 'AI'} takes ${prizesEarned} prize card${prizesEarned > 1 ? 's' : ''}!`, 'prize', 'text-yellow-400');
+
+    if (scoringPlayer === 'player') {
+      const newPrizes = playerPrizes - prizesEarned;
+      setPlayerPrizes(newPrizes);
+      if (newPrizes <= 0) { setWinner('player'); setPhase('finished'); return; }
+      // AI needs to send up bench
+      setAiBench(prev => {
+        if (prev.length === 0) { setWinner('player'); setPhase('finished'); return prev; }
+        const [next, ...rest] = prev;
+        setAiActive(next);
+        return rest;
+      });
+    } else {
+      const newPrizes = aiPrizes - prizesEarned;
+      setAiPrizes(newPrizes);
+      if (newPrizes <= 0) { setWinner('ai'); setPhase('finished'); return; }
+      // Player needs to send up bench
+      if (playerBench.length === 0) { setWinner('ai'); setPhase('finished'); return; }
+      setSelectingBench('sendUp');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerPrizes, aiPrizes, playerBench]);
+
+  // ─── AI Turn ─────────────────────────────────────────────────────────────
+
+  const runAiTurn = useCallback(() => {
+    setAiActive(currentAi => {
+      setPlayerActive(currentPlayer => {
+        setAiBench(currentBench => {
+          if (!currentAi || !currentPlayer) return currentBench;
+
+          let updatedAi = cloneCard(currentAi);
+          let updatedPlayer = cloneCard(currentPlayer);
+
+          // Attach energy
+          updatedAi = { ...updatedAi, energyAttached: [...updatedAi.energyAttached, updatedAi.energyType] };
+          addLog(`AI attached ${updatedAi.energyType} energy to ${updatedAi.name}.`, 'ai', 'text-blue-300');
+
+          // Status check: can't attack if paralyzed/asleep
+          if (updatedAi.statusCondition === 'paralyze' || updatedAi.statusCondition === 'sleep') {
+            addLog(`AI's ${updatedAi.name} can't attack!`, 'status', 'text-orange-300');
+            if (updatedAi.statusCondition === 'paralyze') updatedAi = { ...updatedAi, statusCondition: null };
+            setAiActive(updatedAi);
+            setCurrentTurn('player');
+            return currentBench;
+          }
+
+          // Confusion check
+          if (updatedAi.statusCondition === 'confuse') {
+            if (Math.random() < 0.5) {
+              updatedAi = { ...updatedAi, currentHp: Math.max(0, updatedAi.currentHp - 30) };
+              addLog(`AI's ${updatedAi.name} is confused and hurt itself!`, 'status', 'text-orange-300');
+              setAiActive(updatedAi);
+              setCurrentTurn('player');
+              return currentBench;
+            }
+          }
+
+          // Retreat logic: if very low HP and bench available
+          const hpPct = updatedAi.currentHp / updatedAi.maxHp;
+          if (hpPct < 0.2 && currentBench.length > 0) {
+            const strongest = [...currentBench].sort((a, b) => b.currentHp - a.currentHp)[0];
+            const benchIdx = currentBench.findIndex(c => c.id === strongest.id);
+            if (updatedAi.energyAttached.length >= updatedAi.retreatCost) {
+              const newEnergy = updatedAi.energyAttached.slice(updatedAi.retreatCost);
+              const retreating = { ...updatedAi, energyAttached: newEnergy };
+              const newBench = [...currentBench];
+              newBench[benchIdx] = retreating;
+              setAiActive(strongest);
+              addLog(`AI retreated ${updatedAi.name} and sent up ${strongest.name}!`, 'ai', 'text-blue-300');
+              setCurrentTurn('player');
+              return newBench;
+            }
+          }
+
+          // Pick and use attack
+          const atkIdx = pickAIAttack(updatedAi, updatedPlayer);
+          if (atkIdx === -1) {
+            addLog(`AI's ${updatedAi.name} has no usable attacks. Passing.`, 'ai', 'text-blue-300');
+            setAiActive(updatedAi);
+            setCurrentTurn('player');
+            return currentBench;
+          }
+
+          const atk = updatedAi.attacks[atkIdx];
+          const { damage, effectiveness, isCrit } = calcDamage(updatedAi, updatedPlayer, atk, arena);
+
+          playAttack(updatedAi.types[0]);
+          if (isCrit) playCriticalHit();
+
+          setAnimatingAttack('ai');
+          setTimeout(() => setAnimatingAttack(null), 400);
+          setTimeout(() => {
+            setAnimatingHit('player');
+            setScreenShake(true);
+            setFloatingDmg({ val: damage, side: 'player', crit: isCrit });
+            if (effectiveness === 'super') setEffectMsg({ text: 'SUPER EFFECTIVE! ×2', color: 'text-red-400' });
+            else if (effectiveness === 'weak') setEffectMsg({ text: 'Not very effective...', color: 'text-yellow-400' });
+            setTimeout(() => { setAnimatingHit(null); setScreenShake(false); setFloatingDmg(null); setEffectMsg(null); }, 800);
+          }, 250);
+
+          const newPlayerHp = Math.max(0, updatedPlayer.currentHp - damage);
+          addLog(`AI's ${updatedAi.name} used ${atk.name}! ${damage} damage${effectiveness === 'super' ? ' — Super Effective!' : effectiveness === 'weak' ? ' — Not very effective.' : ''}.`, 'ai', 'text-blue-300');
+
+          if (atk.statusEffect && !updatedPlayer.statusCondition && Math.random() < 0.5) {
+            updatedPlayer = { ...updatedPlayer, currentHp: newPlayerHp, statusCondition: atk.statusEffect };
+            addLog(`Player's ${updatedPlayer.name} is now ${atk.statusEffect}ed!`, 'status', 'text-purple-400');
+          } else {
+            updatedPlayer = { ...updatedPlayer, currentHp: newPlayerHp };
+          }
+
+          // Status damage on AI
+          const { card: aiAfterStatus, text: aiStatusText } = applyStatusDamage(updatedAi);
+          if (aiStatusText) addLog(aiStatusText, 'status', 'text-orange-300');
+          updatedAi = aiAfterStatus;
+
+          setAiActive(updatedAi);
+          setPlayerActive(updatedPlayer);
+
+          setTimeout(() => {
+            if (newPlayerHp <= 0) {
+              handleKO('ai', updatedPlayer);
+            } else if (updatedAi.currentHp <= 0) {
+              handleKO('player', updatedAi);
+            } else {
+              setCurrentTurn('player');
+            }
+          }, 900);
+
+          return currentBench;
+        });
+        return currentPlayer;
+      });
+      return currentAi;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arena, addLog, playAttack, playCriticalHit, handleKO]);
+
+  // ─── Derived ──────────────────────────────────────────────────────────────
+
+  const isPlayerTurn = currentTurn === 'player' && phase === 'battle';
+  const canAttack0 = playerActive ? canUseAttack(playerActive, playerActive.attacks[0]) : false;
+  const canAttack1 = playerActive ? canUseAttack(playerActive, playerActive.attacks[1]) : false;
+  const canRetreat = playerActive && playerBench.length > 0 && playerActive.energyAttached.length >= playerActive.retreatCost;
+
+  if (!playerActive || !aiActive) {
+    return <div className="h-screen bg-gray-950 flex items-center justify-center text-white text-xl">Loading battle...</div>;
   }
 
+  const playerHpPct = (playerActive.currentHp / playerActive.maxHp) * 100;
+  const aiHpPct = (aiActive.currentHp / aiActive.maxHp) * 100;
+
   return (
-    <div className={`h-screen w-screen overflow-hidden relative select-none ${screenShake ? 'animate-screen-shake' : ''}`}>
-      {/* Epic Battle Arena Background */}
-      <div className="absolute inset-0 z-0">
-        {/* Dark dramatic sky */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-indigo-950 to-purple-950" />
+    <div className={`h-screen w-screen overflow-hidden select-none flex flex-col ${screenShake ? 'animate-screen-shake' : ''}`}>
 
-        {/* Animated energy waves */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%]">
-            <div className="absolute inset-0 border-2 border-purple-500/20 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
-            <div className="absolute inset-[10%] border-2 border-blue-500/20 rounded-full animate-ping" style={{ animationDuration: '4s', animationDelay: '1s' }} />
-            <div className="absolute inset-[20%] border-2 border-cyan-500/20 rounded-full animate-ping" style={{ animationDuration: '5s', animationDelay: '2s' }} />
-          </div>
-        </div>
-
-        {/* Stadium lights / spotlights */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 left-1/4 w-40 h-[120%] bg-gradient-to-b from-yellow-400/30 via-yellow-400/5 to-transparent transform -skew-x-12 animate-pulse" style={{ animationDuration: '2s' }} />
-          <div className="absolute -top-20 right-1/4 w-40 h-[120%] bg-gradient-to-b from-orange-400/30 via-orange-400/5 to-transparent transform skew-x-12 animate-pulse" style={{ animationDuration: '2.5s' }} />
-          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-32 h-[120%] bg-gradient-to-b from-white/20 via-white/5 to-transparent" />
-        </div>
-
-        {/* Floating particles */}
-        <div className="absolute inset-0 overflow-hidden">
-          {bgParticles.map((p, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-cyan-400 rounded-full"
-              style={{
-                left: p.left,
-                top: p.top,
-                opacity: p.op,
-                animation: `float ${p.dur} ease-in-out infinite`,
-                animationDelay: p.del,
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Battle arena floor - perspective grid */}
-        <div className="absolute bottom-0 left-0 right-0 h-[40%]" style={{ perspective: '500px' }}>
-          <div
-            className="absolute inset-0 bg-gradient-to-t from-indigo-900/80 via-purple-900/60 to-transparent"
-            style={{ transform: 'rotateX(60deg)', transformOrigin: 'bottom' }}
-          />
-          {/* Neon grid */}
-          <svg className="absolute inset-0 w-full h-full" style={{ transform: 'rotateX(60deg)', transformOrigin: 'bottom' }}>
-            <defs>
-              <pattern id="neonGrid" width="60" height="60" patternUnits="userSpaceOnUse">
-                <path d="M 60 0 L 0 0 0 60" fill="none" stroke="url(#gridGradient)" strokeWidth="1" />
-              </pattern>
-              <linearGradient id="gridGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.5" />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.3" />
-              </linearGradient>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#neonGrid)" />
-          </svg>
-          {/* Center battle circle */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-48 md:w-64 h-16 md:h-20 border-2 border-cyan-500/50 rounded-full bg-cyan-500/10"
-               style={{ transform: 'translateX(-50%) rotateX(60deg)' }} />
-        </div>
-
-        {/* Side energy bars */}
-        <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b from-red-500/50 via-red-600/30 to-red-500/50 animate-pulse" />
-        <div className="absolute right-0 top-0 bottom-0 w-2 bg-gradient-to-b from-blue-500/50 via-blue-600/30 to-blue-500/50 animate-pulse" />
-
-        {/* Corner accents */}
-        <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-red-500/20 to-transparent" />
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-500/20 to-transparent" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-purple-500/20 to-transparent" />
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-cyan-500/20 to-transparent" />
-
-        {/* Vignette */}
-        <div className="absolute inset-0 bg-radial-gradient pointer-events-none"
-             style={{ background: 'radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.6) 100%)' }} />
+      {/* Arena background */}
+      <div className={`absolute inset-0 z-0 bg-gradient-to-b ${arena.bg}`}>
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.5) 100%)' }} />
+        <div className="absolute inset-0 opacity-5"
+          style={{
+            backgroundImage: `linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)`,
+            backgroundSize: '40px 40px',
+          }}
+        />
       </div>
 
-      {/* Main Content */}
-      <div className="relative z-10 h-full flex">
+      <div className="relative z-10 flex h-full">
 
-        {/* Battle Area - Left/Center */}
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex items-end gap-4 md:gap-12">
+        {/* ── MAIN BATTLE AREA ── */}
+        <div className="flex-1 flex flex-col">
 
-            {/* Player 1 */}
-            <div className="flex flex-col items-center gap-2">
-              <Dice
-                value={player1Dice}
-                color="red"
-                rolling={isRolling}
-                canClick={currentTurn === 'player1' && battlePhase === 'fighting' && !isAnimating}
-                onClick={handleBattleClick}
-              />
-              <PlayerCard card={player1Card} isActive={currentTurn === 'player1' && battlePhase === 'fighting'} isLoser={winner === 'player2'} isAttacking={p1Attacking} isHit={p1Hit} />
-              <span className="text-red-400 font-bold text-sm">P1</span>
-            </div>
-
-            {/* VS + Attack Name + Effectiveness */}
-            <div className="flex flex-col items-center mb-20 relative">
-              {/* Attack Name Banner */}
-              {attackName && (
-                <div className="absolute -top-16 left-1/2 -translate-x-1/2 animate-attack-name">
-                  <div className="bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 px-6 py-2 rounded-lg shadow-2xl border-2 border-yellow-300">
-                    <span className="text-white font-black text-lg md:text-xl drop-shadow-lg">{attackName}!</span>
+          {/* AI SIDE */}
+          <div className="flex-1 flex items-start justify-between px-4 pt-3 gap-3">
+            {/* AI bench */}
+            <div className="flex flex-col gap-1.5">
+              <div className="text-white/50 text-[10px] font-bold uppercase tracking-wide">AI Bench</div>
+              <div className="flex flex-col gap-2">
+                {aiBench.map((card) => (
+                  <div key={card.id} className="relative opacity-80">
+                    <PokemonCard pokemon={{ ...card, hp: card.currentHp }} size="sm" clickable={false} showEnergy />
+                    {card.statusCondition && (
+                      <div className="absolute top-0 right-0 text-sm">{STATUS_ICONS[card.statusCondition]}</div>
+                    )}
                   </div>
-                </div>
-              )}
-
-              {battlePhase === 'fighting' && (
-                <div className="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 drop-shadow-lg animate-pulse">
-                  VS
-                </div>
-              )}
-
-              {/* Effectiveness Message */}
-              {effectivenessMsg && (
-                <div className={`absolute top-12 left-1/2 -translate-x-1/2 ${effectivenessMsg.color} font-black text-sm md:text-lg animate-effectiveness whitespace-nowrap`}>
-                  {effectivenessMsg.text}
-                </div>
-              )}
-
-              {battlePhase === 'finished' && (
-                <div className="text-center">
-                  <div className="text-2xl md:text-4xl font-black text-yellow-400 mb-2">
-                    {winner === 'player1' ? player1Card.name : player2Card.name}
-                  </div>
-                  <div className="text-lg text-yellow-300">WINS!</div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); localStorage.removeItem('battleCards'); window.location.href = '/'; }}
-                    className="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg"
-                  >
-                    Play Again
-                  </button>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
 
-            {/* Player 2 */}
+            {/* AI active + prize display */}
             <div className="flex flex-col items-center gap-2">
-              <Dice
-                value={player2Dice}
-                color="blue"
-                rolling={isRolling}
-                canClick={currentTurn === 'player2' && battlePhase === 'fighting' && !isAnimating}
-                onClick={handleBattleClick}
-              />
-              <PlayerCard card={player2Card} isActive={currentTurn === 'player2' && battlePhase === 'fighting'} isLoser={winner === 'player1'} isAttacking={p2Attacking} isHit={p2Hit} />
-              <span className="text-blue-400 font-bold text-sm">P2</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Battle Log - Right Side */}
-        <div className="w-48 md:w-64 h-full flex flex-col justify-end pb-8 pr-2">
-          <div ref={logContainerRef} className="space-y-2 max-h-[60vh] overflow-y-auto scrollbar-hide">
-            {battleLog.map((log, idx) => (
-              <div
-                key={log.id}
-                className={`bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border-l-4 ${
-                  log.critical ? 'border-red-500' : 'border-yellow-500'
-                } transform transition-all duration-300 animate-slide-in`}
-                style={{ opacity: 1 - (battleLog.length - 1 - idx) * 0.15 }}
-              >
-                <div className="text-white text-sm font-bold">{log.attacker}</div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-orange-400 font-bold">{log.damage} DMG</span>
-                  <span className="text-gray-400">🎲{log.roll}</span>
-                  {log.critical && <span className="text-red-400 font-bold">⚡CRIT</span>}
+              <div className="flex items-center gap-2">
+                <div className="text-[11px] font-bold" style={{ color: arena.accent }}>
+                  🤖 AI TRAINER
+                </div>
+                <div className="flex gap-1">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i}
+                      className="w-4 h-4 rounded-full border"
+                      style={{
+                        background: i < aiPrizes ? arena.accent : 'transparent',
+                        borderColor: arena.accent,
+                        opacity: i < aiPrizes ? 1 : 0.3,
+                      }}
+                    />
+                  ))}
                 </div>
               </div>
-            ))}
+
+              {aiThinking && (
+                <div className="text-yellow-400 text-xs font-bold animate-pulse">AI is thinking...</div>
+              )}
+
+              {/* AI Active card */}
+              <div className={`relative ${animatingAttack === 'ai' ? 'animate-attack-lunge-right' : ''} ${animatingHit === 'ai' ? 'animate-hit-flash' : ''}`}>
+                <PokemonCard pokemon={{ ...aiActive, hp: aiActive.currentHp }} size="lg" clickable={false} showEnergy />
+                {aiActive.statusCondition && (
+                  <div className="absolute top-1 left-1 text-xl">{STATUS_ICONS[aiActive.statusCondition]}</div>
+                )}
+              </div>
+
+              {/* AI HP bar */}
+              <div className="w-full px-2">
+                <div className="h-2.5 bg-black/40 rounded-full overflow-hidden border border-white/20">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${aiHpPct}%`,
+                      background: aiHpPct > 60 ? '#22c55e' : aiHpPct > 30 ? '#eab308' : '#ef4444',
+                    }}
+                  />
+                </div>
+                <div className="text-center text-white/70 text-[10px] mt-0.5">
+                  {aiActive.currentHp} / {aiActive.maxHp} HP
+                </div>
+              </div>
+            </div>
+
+            {/* Battle log */}
+            <div className="w-44 flex flex-col gap-1 max-h-[45vh] overflow-y-auto">
+              {log.map(entry => (
+                <div key={entry.id} className={`text-[9px] ${entry.color} leading-tight py-0.5 border-b border-white/5`}>
+                  {entry.text}
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          </div>
+
+          {/* VS divider */}
+          <div className="relative flex items-center justify-center py-1">
+            <div className="absolute inset-x-0 h-px bg-white/10" />
+            <span className="relative px-3 text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 z-10">VS</span>
+          </div>
+
+          {/* PLAYER SIDE */}
+          <div className="flex-1 flex items-end justify-between px-4 pb-2 gap-3">
+            {/* Player active */}
+            <div className="flex flex-col items-center gap-2">
+              {/* Player HP bar */}
+              <div className="w-full px-2">
+                <div className="h-2.5 bg-black/40 rounded-full overflow-hidden border border-white/20">
+                  <div
+                    className="h-full transition-all duration-500"
+                    style={{
+                      width: `${playerHpPct}%`,
+                      background: playerHpPct > 60 ? '#22c55e' : playerHpPct > 30 ? '#eab308' : '#ef4444',
+                    }}
+                  />
+                </div>
+                <div className="text-center text-white/70 text-[10px] mt-0.5">
+                  {playerActive.currentHp} / {playerActive.maxHp} HP
+                </div>
+              </div>
+
+              <div className={`relative ${animatingAttack === 'player' ? 'animate-attack-lunge-left' : ''} ${animatingHit === 'player' ? 'animate-hit-flash' : ''}`}>
+                <PokemonCard pokemon={{ ...playerActive, hp: playerActive.currentHp }} size="lg" clickable={false} showEnergy />
+                {playerActive.statusCondition && (
+                  <div className="absolute top-1 left-1 text-xl">{STATUS_ICONS[playerActive.statusCondition]}</div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i}
+                      className="w-4 h-4 rounded-full border"
+                      style={{
+                        background: i < playerPrizes ? '#FFD700' : 'transparent',
+                        borderColor: '#FFD700',
+                        opacity: i < playerPrizes ? 1 : 0.3,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="text-[11px] font-bold text-yellow-400">YOU</div>
+              </div>
+            </div>
+
+            {/* Player bench */}
+            <div className="flex flex-col gap-1.5">
+              <div className="text-white/50 text-[10px] font-bold uppercase tracking-wide text-right">Your Bench</div>
+              <div className="flex flex-col gap-2">
+                {playerBench.map((card, i) => (
+                  <div key={card.id} className="relative">
+                    <PokemonCard
+                      pokemon={{ ...card, hp: card.currentHp }}
+                      size="sm"
+                      clickable={!!selectingBench}
+                      showEnergy
+                      onSelect={() => {
+                        if (selectingBench === 'retreat') executRetreat(i);
+                        else if (selectingBench === 'sendUp') handleSendUpBench(i);
+                        else if (isPlayerTurn && !playerEnergyPlayed) handleAttachEnergyToBench(i);
+                      }}
+                    />
+                    {card.statusCondition && (
+                      <div className="absolute top-0 right-0 text-sm">{STATUS_ICONS[card.statusCondition]}</div>
+                    )}
+                    {isPlayerTurn && !playerEnergyPlayed && (
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-cyan-400 whitespace-nowrap">
+                        tap to attach ⚡
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Tap hint */}
-      {battlePhase === 'fighting' && !isAnimating && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm">
-          {currentTurn === 'player1' ? '← Click RED dice to roll' : 'Click BLUE dice to roll →'}
+      {/* ── ACTION BAR ── */}
+      <div className="relative z-20 bg-black/70 backdrop-blur-sm border-t border-white/10 px-4 py-2">
+        {phase === 'battle' && (
+          <>
+            {selectingBench ? (
+              <div className="text-center text-yellow-400 font-bold text-sm">
+                {selectingBench === 'retreat' ? '← Select a bench Pokémon to send in' : '⬆ You must send up a bench Pokémon!'}
+                {selectingBench === 'retreat' && (
+                  <button onClick={() => setSelectingBench(null)} className="ml-3 text-white/50 text-xs hover:text-white">Cancel</button>
+                )}
+              </div>
+            ) : currentTurn === 'ai' ? (
+              <div className="text-center text-blue-400 font-bold text-sm animate-pulse">
+                AI is taking its turn...
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 justify-center">
+                {/* Turn indicator */}
+                <div className="text-yellow-400 font-black text-sm mr-2">YOUR TURN</div>
+
+                {/* Attach Energy */}
+                <button
+                  onClick={handleAttachEnergy}
+                  disabled={playerEnergyPlayed}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                    playerEnergyPlayed
+                      ? 'opacity-40 cursor-not-allowed border-white/10 text-white/40'
+                      : 'border-cyan-400 text-cyan-400 hover:bg-cyan-400/20'
+                  }`}
+                >
+                  <span
+                    className="w-4 h-4 rounded-full text-[8px] font-black text-white flex items-center justify-center"
+                    style={{ background: ENERGY_CONFIG[playerActive.energyType]?.bg }}
+                  >
+                    {ENERGY_CONFIG[playerActive.energyType]?.text}
+                  </span>
+                  {playerEnergyPlayed ? 'Energy Played' : `Attach ${playerActive.energyType}`}
+                </button>
+
+                {/* Attacks */}
+                {playerActive.attacks.map((atk, i) => {
+                  const can = i === 0 ? canAttack0 : canAttack1;
+                  const disabled = !isPlayerTurn || playerAttacked || !can ||
+                    playerActive.statusCondition === 'paralyze' || playerActive.statusCondition === 'sleep';
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => !disabled && handlePlayerAttack(i)}
+                      disabled={disabled}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                        disabled
+                          ? 'opacity-40 cursor-not-allowed border-white/10 text-white/40'
+                          : 'border-orange-400 text-orange-400 hover:bg-orange-400/20'
+                      }`}
+                    >
+                      <div className="flex gap-0.5">
+                        {atk.energyCost.map((e, j) => (
+                          <span key={j}
+                            className="w-3.5 h-3.5 rounded-full text-[7px] font-black text-white flex items-center justify-center"
+                            style={{ background: ENERGY_CONFIG[e]?.bg || '#666' }}
+                          >
+                            {ENERGY_CONFIG[e]?.text}
+                          </span>
+                        ))}
+                      </div>
+                      ⚔ {atk.name}
+                      {atk.damage > 0 && <span className="text-white/70 text-xs ml-1">{atk.damage}</span>}
+                      {!can && <span className="text-red-400 text-[9px] ml-1">no energy</span>}
+                    </button>
+                  );
+                })}
+
+                {/* Retreat */}
+                <button
+                  onClick={handleRetreat}
+                  disabled={!canRetreat || playerAttacked}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${
+                    !canRetreat || playerAttacked
+                      ? 'opacity-40 cursor-not-allowed border-white/10 text-white/40'
+                      : 'border-purple-400 text-purple-400 hover:bg-purple-400/20'
+                  }`}
+                >
+                  ↩ Retreat ({playerActive.retreatCost})
+                </button>
+
+                {/* Pass */}
+                <button
+                  onClick={handlePassTurn}
+                  className="px-3 py-1.5 rounded-lg text-sm font-bold border border-white/20 text-white/50 hover:bg-white/10"
+                >
+                  Pass
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Arena name */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-right">
+          <div className="text-[10px]" style={{ color: arena.accent }}>{arena.emoji} {arena.name}</div>
+          {arena.modifier && (
+            <div className="text-[9px] text-white/40">{arena.effect}</div>
+          )}
+        </div>
+      </div>
+
+      {/* ── FLOATING EFFECTS ── */}
+      {effectMsg && (
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 font-black text-lg md:text-2xl ${effectMsg.color} pointer-events-none animate-effectiveness`}
+          style={{ textShadow: '2px 2px 0 #000, -1px -1px 0 #000' }}>
+          {effectMsg.text}
         </div>
       )}
 
-      {/* Turn indicator */}
-      {battlePhase === 'fighting' && (
-        <div className={`absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full font-bold ${
-          currentTurn === 'player1' ? 'bg-red-600' : 'bg-blue-600'
-        } text-white shadow-lg`}>
-          {currentTurn === 'player1' ? player1Card.name : player2Card.name}&apos;s Turn
-        </div>
-      )}
-
-      {/* Particles */}
-      <ParticleEffect
-        type={particleType}
-        isActive={showParticles}
-        onComplete={() => setShowParticles(false)}
-        x={typeof window !== 'undefined' ? window.innerWidth / 2 : 200}
-        y={typeof window !== 'undefined' ? window.innerHeight / 2 : 200}
-      />
-
-      {/* Floating Damage Number */}
-      {floatingDamage && (
+      {floatingDmg && (
         <div
-          key={floatingDamage.id}
-          className="absolute pointer-events-none z-50 animate-damage-float"
-          style={{ left: `${floatingDamage.x}%`, top: `${floatingDamage.y}%` }}
+          className="absolute z-50 pointer-events-none animate-damage-float"
+          style={{
+            left: floatingDmg.side === 'ai' ? '55%' : '35%',
+            top: floatingDmg.side === 'ai' ? '30%' : '60%',
+          }}
         >
-          <div className={`font-black text-4xl md:text-6xl ${floatingDamage.critical ? 'text-red-500 animate-crit-pulse' : 'text-yellow-400'}`}
-               style={{ textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000' }}>
-            -{floatingDamage.damage}
-            {floatingDamage.damage === 0 && <span className="text-2xl ml-1">IMMUNE!</span>}
-            {floatingDamage.critical && floatingDamage.damage > 0 && <span className="text-2xl ml-1">CRIT!</span>}
+          <div
+            className={`font-black text-4xl md:text-5xl ${floatingDmg.crit ? 'text-red-400' : 'text-yellow-300'}`}
+            style={{ textShadow: '3px 3px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000' }}
+          >
+            -{floatingDmg.val}{floatingDmg.crit && <span className="text-2xl ml-1">CRIT!</span>}
+          </div>
+        </div>
+      )}
+
+      {/* ── FINISHED OVERLAY ── */}
+      {phase === 'finished' && (
+        <div className="absolute inset-0 z-50 bg-black/70 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-5xl md:text-7xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
+              {winner === 'player' ? '🏆 YOU WIN!' : '💀 YOU LOSE'}
+            </div>
+            <div className="text-white/70 text-lg mb-6">
+              {winner === 'player' ? 'All prize cards collected!' : 'Better luck next time, trainer.'}
+            </div>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => { localStorage.removeItem('battleCards'); localStorage.removeItem('selectedArena'); router.push('/'); }}
+                className="px-8 py-3 rounded-xl font-bold text-white text-lg bg-blue-600 hover:bg-blue-500 border-2 border-blue-400"
+              >
+                ← New Team
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-8 py-3 rounded-xl font-bold text-white text-lg bg-orange-600 hover:bg-orange-500 border-2 border-orange-400"
+              >
+                ↺ Rematch
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       <style jsx>{`
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        @keyframes slide-in {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .animate-slide-in { animation: slide-in 0.3s ease-out; }
-        @keyframes shimmer {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 0.6; }
-        }
-        .animate-shimmer { animation: shimmer 2s ease-in-out infinite; }
-        @keyframes holo-sweep {
-          0% { transform: translateX(-200%) skewX(-12deg); }
-          100% { transform: translateX(200%) skewX(-12deg); }
-        }
-        .animate-holo-sweep { animation: holo-sweep 8s ease-in-out infinite 2s; }
-        @keyframes legendary-glow {
-          0%, 100% { filter: drop-shadow(0 0 8px currentColor); }
-          50% { filter: drop-shadow(0 0 16px currentColor); }
-        }
-        .animate-legendary-glow { animation: legendary-glow 2s ease-in-out infinite; }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); opacity: 0.4; }
-          50% { transform: translateY(-20px); opacity: 0.8; }
-        }
         @keyframes screen-shake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-8px) translateY(4px); }
-          40% { transform: translateX(8px) translateY(-4px); }
-          60% { transform: translateX(-6px) translateY(2px); }
-          80% { transform: translateX(6px) translateY(-2px); }
+          0%, 100% { transform: translate(0); }
+          20% { transform: translate(-6px, 3px); }
+          40% { transform: translate(6px, -3px); }
+          60% { transform: translate(-4px, 2px); }
+          80% { transform: translate(4px, -2px); }
         }
-        .animate-screen-shake { animation: screen-shake 0.2s ease-out; }
-        @keyframes attack-lunge {
-          0% { transform: scale(1) translateX(0); }
-          50% { transform: scale(1.1) translateX(20px); }
-          100% { transform: scale(1) translateX(0); }
+        .animate-screen-shake { animation: screen-shake 0.25s ease-out; }
+        @keyframes attack-lunge-left {
+          0%, 100% { transform: scale(1) translateX(0); }
+          50% { transform: scale(1.08) translateX(16px); }
         }
-        .animate-attack-lunge { animation: attack-lunge 0.3s ease-out; }
+        .animate-attack-lunge-left { animation: attack-lunge-left 0.35s ease-out; }
+        @keyframes attack-lunge-right {
+          0%, 100% { transform: scale(1) translateX(0); }
+          50% { transform: scale(1.08) translateX(-16px); }
+        }
+        .animate-attack-lunge-right { animation: attack-lunge-right 0.35s ease-out; }
         @keyframes hit-flash {
           0%, 100% { filter: brightness(1); }
-          25%, 75% { filter: brightness(2) saturate(0); }
-          50% { filter: brightness(3) saturate(0); }
+          30%, 70% { filter: brightness(3) saturate(0); }
         }
-        .animate-hit-flash { animation: hit-flash 0.2s ease-out; }
+        .animate-hit-flash { animation: hit-flash 0.25s ease-out; }
         @keyframes damage-float {
-          0% { transform: translateY(0) scale(0.5); opacity: 0; }
-          20% { transform: translateY(-20px) scale(1.2); opacity: 1; }
-          100% { transform: translateY(-80px) scale(1); opacity: 0; }
+          0% { transform: translateY(0) scale(0.6); opacity: 0; }
+          20% { transform: translateY(-10px) scale(1.2); opacity: 1; }
+          100% { transform: translateY(-70px) scale(1); opacity: 0; }
         }
         .animate-damage-float { animation: damage-float 1s ease-out forwards; }
-        @keyframes crit-pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.2); }
-        }
-        .animate-crit-pulse { animation: crit-pulse 0.15s ease-out 3; }
-        @keyframes attack-name {
-          0% { transform: translateX(-50%) scale(0) rotate(-10deg); opacity: 0; }
-          30% { transform: translateX(-50%) scale(1.2) rotate(5deg); opacity: 1; }
-          100% { transform: translateX(-50%) scale(1) rotate(0deg); opacity: 1; }
-        }
-        .animate-attack-name { animation: attack-name 0.4s ease-out forwards; }
         @keyframes effectiveness {
-          0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
-          30% { transform: translateX(-50%) scale(1.1); opacity: 1; }
-          100% { transform: translateX(-50%) scale(1); opacity: 1; }
+          0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0; }
+          20% { transform: translate(-50%,-50%) scale(1.2); opacity: 1; }
+          70% { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+          100% { transform: translate(-50%,-50%) scale(0.9); opacity: 0; }
         }
-        .animate-effectiveness { animation: effectiveness 0.3s ease-out forwards; }
+        .animate-effectiveness { animation: effectiveness 1.5s ease-out forwards; }
       `}</style>
     </div>
   );
